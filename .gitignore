@@ -15,6 +15,7 @@ tests/data/
 *.CFT
 *.cft
 *.xls
+*.pptx
 Report/
 
 # Scratch work and Claude Code personal files

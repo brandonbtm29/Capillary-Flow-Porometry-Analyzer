@@ -15,6 +15,8 @@ mean flow pore, smallest pore, pore size distribution), and plots the runs side 
 - Change the settings in the next cell, then choose **Run All**.
 - Each plot cell is plain matplotlib, so you can change colors, axis limits, labels or figure sizes right in that cell.
 - Set `SAVE = True` to write the figures (PNG at 300 dpi, plus SVG) and the tables into `OUT_DIR`.
+- With `SLIDES = True` the last cell writes a PowerPoint of the tables and every figure into `OUT_DIR`.
+- `TEXT_SIZE` / `LABEL_SIZE` set the size of tick labels and axis titles on every plot.
 
 Calculations come from the `porometry` package in this repo (`src/porometry/analysis.py`), following CapRep's formulas."""))
 
@@ -50,9 +52,12 @@ if DATA_DIR.name == "Test Data":
     print(f"{DATE} data folder not found; showing the lab test files in {DATA_DIR} instead.")
 OUT_DIR  = DATA_DIR / "Report"
 SAVE     = False                    # True = write figures and tables to OUT_DIR
+SLIDES   = True                     # True = write a PowerPoint of the tables and figures to OUT_DIR
 UNITS    = "kPa"                    # "kPa" or "psi"
 LOG_DIAMETER = True                 # log scale for the diameter axes
 HIST_BINS = 25                      # bins for the pore size histogram
+TEXT_SIZE  = 13                     # tick labels, legends (points)
+LABEL_SIZE = 15                     # axis titles (points)
 
 # analysis options (defaults reproduce CapRep)
 SHAPE_FACTOR = 0.715                # 1.0 = plain 4*gamma/dP (diameters x1.4)
@@ -94,7 +99,9 @@ LABEL = {e.name: f"{rate_of(e.name):g} mm/min" + ("" if e.name.upper().endswith(
 
 plt.rcParams.update({
     "figure.dpi": 110, "savefig.dpi": 300, "savefig.bbox": "tight",
-    "font.size": 10, "axes.spines.top": False, "axes.spines.right": False,
+    "font.size": TEXT_SIZE, "axes.labelsize": LABEL_SIZE, "axes.titlesize": LABEL_SIZE,
+    "xtick.labelsize": TEXT_SIZE, "ytick.labelsize": TEXT_SIZE, "legend.fontsize": TEXT_SIZE - 1,
+    "axes.spines.top": False, "axes.spines.right": False,
     "axes.grid": True, "grid.color": "#e4e3df", "grid.linewidth": 0.6,
     "legend.frameon": False, "lines.linewidth": 1.6, "lines.markersize": 3.5,
 })
@@ -105,7 +112,10 @@ def plain_log_x(ax):
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
     ax.xaxis.set_minor_formatter(FuncFormatter(lambda v, _: f"{v:g}" if f"{v:.0e}"[0] in "25" else ""))
 
+FIGS = {}   # every figure drawn below, in order, for the slides at the end
+
 def save(fig, name):
+    FIGS[name] = fig
     if SAVE:
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         for ext in ("png", "svg"):
@@ -154,7 +164,7 @@ ax.set_xlabel(f"Differential pressure ({UNITS})")
 ax.set_ylabel("Air flow (L/min)")
 ax.set_xlim(left=0); ax.set_ylim(bottom=0)
 ax.set_title("Flow vs pressure (solid = wet, dotted = dry)", loc="left", fontweight="bold")
-ax.legend(loc="upper left")
+ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
 save(fig, "flow_vs_pressure")
 plt.show()"""))
 
@@ -176,7 +186,7 @@ ax.set_ylim(0, 110)
 ax.set_xlabel("Pore diameter (µm)")
 ax.set_ylabel("Cumulative filter flow (%)")
 ax.set_title("Cumulative filter flow (open circle = mean flow pore)", loc="left", fontweight="bold")
-ax.legend(loc="lower left")
+ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
 save(fig, "cumulative_filter_flow")
 plt.show()"""))
 
@@ -196,7 +206,7 @@ if LOG_DIAMETER:
 ax.set_xlabel("Pore diameter (µm)")
 ax.set_ylabel("Flow through pores in bin (%)")
 ax.set_title(f"Pore size distribution ({HIST_BINS} bins)", loc="left", fontweight="bold")
-ax.legend(loc="upper right")
+ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
 save(fig, "pore_size_distribution_hist")
 plt.show()"""))
 
@@ -213,7 +223,7 @@ if LOG_DIAMETER:
 ax.set_xlabel("Pore diameter (µm)")
 ax.set_ylabel("Pore size distribution (%/µm)")
 ax.set_title("Pore size distribution, point by point (CapRep method)", loc="left", fontweight="bold")
-ax.legend(loc="upper right")
+ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
 save(fig, "pore_size_distribution_points")
 plt.show()"""))
 
@@ -237,7 +247,7 @@ ax.set_ylim(bottom=0)
 ax.set_xlabel("Rate in file name (mm/min)")
 ax.set_ylabel("Pore diameter (µm)")
 ax.set_title("Pore size vs rate", loc="left", fontweight="bold")
-ax.legend(loc="upper left")
+ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
 save(fig, "pore_size_vs_rate")
 plt.show()"""))
 
@@ -247,7 +257,7 @@ Set `RUN` to any run name from the table."""))
 cells.append(code("""RUN = runs[0].name
 e = next(r for r in runs if r.name == RUN)
 a, c = e.analysis, COLOR[e.name]
-fig, axs = plt.subplots(1, 3, figsize=(14, 4), layout="constrained")
+fig, axs = plt.subplots(1, 3, figsize=(14, 5), layout="constrained")
 axs[0].plot(a.wet_dp * P, a.wet_flow / 1000, "o-", color=c, label="wet")
 axs[0].plot(a.dry_dp * P, a.dry_flow / 1000, ":", color=c, label="dry")
 axs[0].plot(a.dry_dp * P, a.dry_flow / 2000, "-", color="#52514e", lw=0.9, label="half dry")
@@ -279,6 +289,39 @@ if SAVE:
     print("wrote", xlsx)
 else:
     print("SAVE is False: nothing written")"""))
+
+cells.append(md("""## 7. Slides
+Writes a PowerPoint (16:9) to `OUT_DIR`: a title slide, the comparison table split over two slides,
+then one slide per figure above. Each slide shows the figure exactly as drawn here, so restyle a plot
+in its cell, rerun it, then rerun this cell."""))
+
+cells.append(code("""from porometry.slides import write_deck
+
+def cols(*names):
+    return [c for c in table.columns if any(c.startswith(n) for n in names)]
+
+if SLIDES:
+    sizes = table[cols("Run", "Rate", "QC", "Largest pore", "Mean flow pore", "Smallest pore", "Wet/dry at max")]
+    flows = table[cols("Run", "Thickness", "Bubble point", "Mean flow pressure", "Max pressure", "Dry flow at 50")]
+    captions = {
+        "flow_vs_pressure": "Solid = wet run, dotted = dry run.",
+        "cumulative_filter_flow": "Open circle = mean flow pore (wet flow = half of dry flow).",
+        "pore_size_vs_rate": "Open marker = the run ended before wet flow met dry flow.",
+    }
+    figures = [(f.axes[0].get_title(loc="left") or getattr(f._suptitle, "get_text", lambda: "")() or name.replace("_", " "),
+                f, captions.get(name, "")) for name, f in FIGS.items()]
+    deck = write_deck(
+        OUT_DIR / f"Porometry {DATE}.pptx",
+        "Capillary flow porometry",
+        f"{len(runs)} runs, {DATA_DIR.name}",
+        tables=[("Pore sizes", sizes, "Smallest pore is blank when the run ended before wet flow met dry flow."),
+                (f"Pressures ({UNITS}) and flows", flows)],
+        figures=figures,
+        footer="CFP-1500AEX, analyzed with Porometry Analyzer (CapRep calculations)",
+    )
+    print("wrote", deck)
+else:
+    print("SLIDES is False: no PowerPoint written")"""))
 
 nb.cells = cells
 nb.metadata["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}

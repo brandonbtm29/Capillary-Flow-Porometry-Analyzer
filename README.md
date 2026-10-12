@@ -83,9 +83,11 @@ opens it in JupyterLab. In VS Code, open the same file and pick the app's Python
 kernel (`.venv` in this folder on Windows, `~/.venvs/porometry-analyzer` on macOS); plots show up
 under each cell. The settings cell looks for `Data/<date>` next to it (set `DATE`, or add your
 SyncThing location to `SYNC_ROOTS`) and falls back to `Test Data`. With `SAVE = True` it writes
-figures and tables to that data folder's `Report/`.
+figures and tables to that data folder's `Report/`, and with `SLIDES = True` (the default) the last
+cell writes a PowerPoint there: title slide, the comparison table, then one slide per figure.
+`TEXT_SIZE` and `LABEL_SIZE` in the settings cell set the tick-label and axis-title sizes.
 
-`examples/compare_conditions.py` makes the same report from the command line.
+`examples/compare_conditions.py` makes the same report, PowerPoint included, from the command line.
 
 ## How the numbers are calculated
 
@@ -158,6 +160,7 @@ src/porometry/
   workspace.py  loaded runs, grouping, summary tables
   export.py     Excel / CSV / figure export
   figures.py    matplotlib plots (shared by app and exports)
+  slides.py     PowerPoint export (write_deck)
   cli.py        porometry-cli
   gui/          PyQt6 app
 tests/          pytest. test_synthetic.py runs anywhere; the rest use lab files from SyncThing (tests/_data.py)

@@ -6,6 +6,7 @@ Writes into the output folder (default: <folder>/Report):
   comparison.csv / summary.xlsx      one row per run, plus the usual Summary/Groups/QC/per-run sheets
   overlay_flow/cff/psd.png           all runs on one plot each
   trend_vs_rate.png                  pore sizes vs mm/min
+  Porometry <folder> (script).pptx   PowerPoint of the tables and figures
   <run>_report.png                   flow, CFF and distribution for each run
 """
 
@@ -112,6 +113,21 @@ def main(argv=None) -> int:
     for e in ws.entries:
         make_figure("all", ws.series([e]), opts, size=(6.5, 3.6)).savefig(out / f"{e.name}_report.png")
     trend_plot(df, out / "trend_vs_rate.png")
+    from porometry.slides import write_deck
+
+    pick = lambda *names: df[[c for c in df.columns if any(c.startswith(n) for n in names)]]  # noqa: E731
+    figs = [("Flow vs pressure", out / "overlay_flow.png"),
+            ("Cumulative filter flow", out / "overlay_cff.png"),
+            ("Pore size distribution", out / "overlay_psd.png"),
+            ("Pore size distribution (histogram)", out / "overlay_psd_histogram.png"),
+            ("Pore size vs rate", out / "trend_vs_rate.png")]
+    figs += [(e.name, out / f"{e.name}_report.png") for e in ws.entries]
+    write_deck(out / f"Porometry {folder.name} (script).pptx", "Capillary flow porometry", f"{len(ws.entries)} runs, {folder.name}",
+               tables=[("Pore sizes", pick("Run", "Rate", "QC", "Largest pore", "Mean flow pore", "Smallest pore",
+                                           "Wet/dry flow at max")),
+                       ("Pressures (kPa) and flows", pick("Run", "Thickness", "Bubble point", "Mean flow pressure",
+                                                          "Max pressure", "Dry flow at 50"))],
+               figures=figs, footer="CFP-1500AEX, analyzed with Porometry Analyzer (CapRep calculations)")
     with pd.option_context("display.width", 250, "display.max_columns", 30):
         print(df.drop(columns=["QC issues"]).to_string(index=False))
         print(df[["Run", "QC issues"]].to_string(index=False))

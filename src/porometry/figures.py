@@ -25,10 +25,12 @@ INK2 = "#52514e"
 GRID = "#e4e3df"
 
 STYLE = {
-    "font.size": 10,
-    "axes.titlesize": 11,
+    "font.size": 12,
+    "axes.titlesize": 14,
     "axes.titleweight": "bold",
-    "axes.labelsize": 10,
+    "axes.labelsize": 14,
+    "xtick.labelsize": 12,
+    "ytick.labelsize": 12,
     "axes.edgecolor": "#b8b7b1",
     "axes.labelcolor": INK,
     "axes.spines.top": False,
@@ -40,7 +42,7 @@ STYLE = {
     "ytick.color": INK2,
     "text.color": INK,
     "legend.frameon": False,
-    "legend.fontsize": 8.5,
+    "legend.fontsize": 11,
     "lines.linewidth": 1.6,
     "lines.markersize": 4,
     "figure.dpi": 100,

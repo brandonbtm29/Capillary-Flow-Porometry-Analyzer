@@ -119,3 +119,27 @@ def test_template_notebook_has_no_outputs():
 
     nb = json.loads((Path(__file__).parents[1] / "examples" / "compare_conditions.ipynb").read_text(encoding="utf-8"))
     assert all(not c.get("outputs") for c in nb["cells"])
+
+
+def test_powerpoint_deck(tmp_path):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    from pptx import Presentation
+
+    from porometry.slides import write_deck
+
+    fig, ax = plt.subplots()
+    ax.plot([1, 2, 3], [1, 4, 9])
+    ax.set_title("kept on the figure", loc="left")
+    df = pd.DataFrame({"Rate (mm/min)": [0.25, 2.0], "Run": ["a", "b"], "Mean flow pore (um)": [1.4123, 0.9]})
+    out = write_deck(tmp_path / "d.pptx", "Title", "sub", tables=[("Table", df)], figures=[("Fig", fig, "cap")])
+    prs = Presentation(out)
+    assert len(prs.slides) == 3
+    assert ax.get_title(loc="left") == "kept on the figure"  # restored after the picture is made
+    table = next(s for s in prs.slides[1].shapes if s.has_table).table
+    assert table.cell(0, 0).text == "Run"  # run names first
+    assert [table.cell(i, 1).text for i in (1, 2)] == ["0.25", "2"]
+    assert [table.cell(i, 2).text for i in (1, 2)] == ["1.41", "0.90"]  # same decimals down a column

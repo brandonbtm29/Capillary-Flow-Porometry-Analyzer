@@ -33,7 +33,8 @@ python tools/caprep_check.py         # re-check against CapRep's own reports (ne
 | `qc.py` | data-quality checks -> `QCReport` (pass/info/warn/fail); uses the raw CFF (`Analysis.cff_raw`) |
 | `workspace.py` | loaded runs, stable colours, duplicate grouping (auto + manual overrides), summary/group tables |
 | `export.py` | Excel (Summary, Groups, QC, one sheet per run) / CSV, figures |
-| `figures.py` | matplotlib drawing shared by GUI and export; colour-blind-checked palette, never cycled past 8 |
+| `figures.py` | matplotlib drawing shared by GUI and export; colour-blind-checked palette, never cycled past 8; axis titles 14 pt, ticks 12 pt |
+| `slides.py` | `write_deck()`: 16:9 PowerPoint (title, tables, one slide per figure) via python-pptx; used by the notebook's last cell and `compare_conditions.py` |
 | `gui/` | `main_window.py` (tree of runs, 3 plot tabs, run + group tables, settings dialog) |
 | `tools/caprep_check.py` | compares `analyze()` with every CapRep `.xls` report found next to its `.CFT` |
 
