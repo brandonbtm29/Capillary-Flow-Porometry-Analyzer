@@ -251,32 +251,36 @@ ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
 save(fig, "pore_size_vs_rate")
 plt.show()"""))
 
-cells.append(md("""## 5. One run in detail
-Set `RUN` to any run name from the table."""))
+cells.append(md("""## 5. Each run in detail
+One figure per run: flow vs pressure with the half-dry line, cumulative filter flow, and the pore size
+histogram. To show only some runs, set `DETAIL_RUNS` to a list of run names from the table."""))
 
-cells.append(code("""RUN = runs[0].name
-e = next(r for r in runs if r.name == RUN)
-a, c = e.analysis, COLOR[e.name]
-fig, axs = plt.subplots(1, 3, figsize=(14, 5), layout="constrained")
-axs[0].plot(a.wet_dp * P, a.wet_flow / 1000, "o-", color=c, label="wet")
-axs[0].plot(a.dry_dp * P, a.dry_flow / 1000, ":", color=c, label="dry")
-axs[0].plot(a.dry_dp * P, a.dry_flow / 2000, "-", color="#52514e", lw=0.9, label="half dry")
-for dp, lab in ((a.bubble_dp, "bubble point"), (a.mean_flow_dp, "mean flow")):
-    if dp:
-        axs[0].axvline(dp * P, color="#52514e", lw=0.8, ls=":")
-axs[0].set(xlabel=f"Differential pressure ({UNITS})", ylabel="Air flow (L/min)", xlim=(0, None), ylim=(0, None))
-axs[0].legend(loc="upper left")
-axs[1].plot(a.diameter, a.cff, "o-", color=c)
-axs[1].axhline(50, color="#52514e", lw=0.8, ls=":")
-axs[1].set(xlabel="Pore diameter (µm)", ylabel="Cumulative filter flow (%)", ylim=(0, 110))
-edges, flow_pct, _, _ = a.binned_distribution(HIST_BINS, log=LOG_DIAMETER)
-axs[2].bar(edges[:-1], flow_pct, width=np.diff(edges), align="edge", color=c, alpha=0.85, edgecolor="white")
-axs[2].set(xlabel="Pore diameter (µm)", ylabel="Flow through pores in bin (%)")
-if LOG_DIAMETER:
-    plain_log_x(axs[1]); plain_log_x(axs[2])
-fig.suptitle(f"{RUN}  —  mean flow pore {a.mean_flow_d:.3g} µm" if a.mean_flow_d else RUN, x=0.01, ha="left", fontweight="bold")
-save(fig, f"{RUN}_detail")
-plt.show()"""))
+cells.append(code("""DETAIL_RUNS = [e.name for e in runs]      # e.g. ["CFP-0_25MM_MIN_T1"] for just one
+
+for e in (r for r in runs if r.name in DETAIL_RUNS):
+    a, c = e.analysis, COLOR[e.name]
+    fig, axs = plt.subplots(1, 3, figsize=(14, 5), layout="constrained")
+    axs[0].plot(a.wet_dp * P, a.wet_flow / 1000, "o-", color=c, label="wet")
+    axs[0].plot(a.dry_dp * P, a.dry_flow / 1000, ":", color=c, label="dry")
+    axs[0].plot(a.dry_dp * P, a.dry_flow / 2000, "-", color="#52514e", lw=0.9, label="half dry")
+    for dp in (a.bubble_dp, a.mean_flow_dp):
+        if dp:
+            axs[0].axvline(dp * P, color="#52514e", lw=0.8, ls=":")
+    axs[0].set(xlabel=f"Differential pressure ({UNITS})", ylabel="Air flow (L/min)", xlim=(0, None), ylim=(0, None))
+    axs[0].legend(loc="upper left")
+    axs[1].plot(a.diameter, a.cff, "o-", color=c)
+    axs[1].axhline(50, color="#52514e", lw=0.8, ls=":")
+    axs[1].set(xlabel="Pore diameter (\u00b5m)", ylabel="Cumulative filter flow (%)", ylim=(0, 110))
+    edges, flow_pct, _, _ = a.binned_distribution(HIST_BINS, log=LOG_DIAMETER)
+    axs[2].bar(edges[:-1], flow_pct, width=np.diff(edges), align="edge", color=c, alpha=0.85, edgecolor="white")
+    axs[2].set(xlabel="Pore diameter (\u00b5m)", ylabel="Flow through pores in bin (%)")
+    if LOG_DIAMETER:
+        plain_log_x(axs[1]); plain_log_x(axs[2])
+    head = LABEL[e.name]
+    fig.suptitle(f"{head}: mean flow pore {a.mean_flow_d:.3g}\u00a0\u00b5m" if a.mean_flow_d else head,
+                 x=0.01, ha="left", fontweight="bold")
+    save(fig, f"{e.name}_detail")
+    plt.show()"""))
 
 cells.append(md("""## 6. Export
 Writes `summary.xlsx` to `OUT_DIR`, with Summary, Groups (mean ± SD of duplicates), QC and one sheet per run, plus this comparison table."""))
@@ -309,7 +313,8 @@ if SLIDES:
         "pore_size_vs_rate": "Open marker = the run ended before wet flow met dry flow.",
     }
     figures = [(f.axes[0].get_title(loc="left") or getattr(f._suptitle, "get_text", lambda: "")() or name.replace("_", " "),
-                f, captions.get(name, "")) for name, f in FIGS.items()]
+                f, captions.get(name, name[:-len("_detail")] if name.endswith("_detail") else ""))
+               for name, f in FIGS.items()]
     deck = write_deck(
         OUT_DIR / f"Porometry {DATE}.pptx",
         "Capillary flow porometry",
