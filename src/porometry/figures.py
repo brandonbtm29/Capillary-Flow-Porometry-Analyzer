@@ -1,0 +1,239 @@
+"""Matplotlib figures shared by the GUI and the exporters."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Iterable
+
+import matplotlib
+import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from matplotlib.ticker import FuncFormatter
+
+from .analysis import Analysis
+from .cft import PSI_TO_KPA
+from .qc import Level
+
+# Categorical order (colour-blind checked as an ordered set). Never cycled past 8:
+# runs 9+ reuse the hues with a different marker so identity never rests on colour alone.
+PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
+MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
+STATUS_COLORS = {"pass": "#0ca30c", "info": "#2a78d6", "warn": "#fab219", "fail": "#d03b3b"}
+INK = "#0b0b0b"
+INK2 = "#52514e"
+GRID = "#e4e3df"
+
+STYLE = {
+    "font.size": 10,
+    "axes.titlesize": 11,
+    "axes.titleweight": "bold",
+    "axes.labelsize": 10,
+    "axes.edgecolor": "#b8b7b1",
+    "axes.labelcolor": INK,
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "axes.grid": True,
+    "grid.color": GRID,
+    "grid.linewidth": 0.6,
+    "xtick.color": INK2,
+    "ytick.color": INK2,
+    "text.color": INK,
+    "legend.frameon": False,
+    "legend.fontsize": 8.5,
+    "lines.linewidth": 1.6,
+    "lines.markersize": 4,
+    "figure.dpi": 100,
+    "savefig.dpi": 300,
+    "savefig.bbox": "tight",
+    "svg.fonttype": "none",
+    "pdf.fonttype": 42,
+}
+
+
+@dataclass
+class PlotOptions:
+    units: str = "kPa"  # or "psi"
+    log_diameter: bool = True
+    psd_mode: str = "points"  # "points" (CapRep) or "binned"
+    psd_bins: int = 20
+    psd_weighting: str = "D"  # "D", "D2" or "dD2" (see Analysis.distribution)
+    show_markers: bool = True
+    show_half_dry: bool = True  # only drawn when one run is shown
+    title: bool = True
+
+
+@dataclass
+class Series:
+    """A run to draw, with its identity colour/marker and QC level."""
+
+    analysis: Analysis
+    color: str
+    marker: str = "o"
+    level: Level = Level.PASS
+    label: str = ""
+    highlighted: bool = False
+    extra: dict = field(default_factory=dict)
+
+    @property
+    def name(self) -> str:
+        return self.label or self.analysis.run.name
+
+
+def style_for(index: int) -> tuple[str, str]:
+    """Stable colour + marker for the n-th run loaded."""
+    return PALETTE[index % len(PALETTE)], MARKERS[(index // len(PALETTE)) % len(MARKERS)]
+
+
+def _p(dp_psi, units: str):
+    return np.asarray(dp_psi) * (PSI_TO_KPA if units == "kPa" else 1.0)
+
+
+def _ls(s: Series) -> str:
+    return "--" if s.level >= Level.FAIL else "-"
+
+
+def _lw(s: Series, any_highlight: bool) -> float:
+    if s.highlighted:
+        return 2.6
+    return 1.0 if any_highlight else 1.6
+
+
+def _alpha(s: Series, any_highlight: bool) -> float:
+    if any_highlight and not s.highlighted:
+        return 0.35
+    return 1.0
+
+
+def _log_diameter_axis(ax: Axes) -> None:
+    """Log x axis with plain numbers (0.2, 0.5, 1, 2) instead of 2x10^-1."""
+    ax.set_xscale("log")
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+    ax.xaxis.set_minor_formatter(FuncFormatter(lambda v, _: f"{v:g}" if f"{v:.0e}"[0] in "25" else ""))
+
+
+def _label(s: Series) -> str:
+    return s.name + ("  [QC fail]" if s.level >= Level.FAIL else "")
+
+
+def draw_flow(ax: Axes, series: list[Series], o: PlotOptions) -> None:
+    hl = any(s.highlighted for s in series)
+    single = len(series) == 1
+    for s in series:
+        a = s.analysis
+        al, lw = _alpha(s, hl), _lw(s, hl)
+        if a.wet_dp.size:
+            ax.plot(_p(a.wet_dp, o.units), a.wet_flow / 1000, _ls(s), color=s.color, lw=lw, alpha=al,
+                    marker=s.marker if o.show_markers else None, markevery=max(1, a.wet_dp.size // 25),
+                    label=f"{_label(s)} wet" if single else _label(s))
+        if a.dry_dp.size:
+            ax.plot(_p(a.dry_dp, o.units), a.dry_flow / 1000, ":", color=s.color, lw=max(1.0, lw - 0.4), alpha=al,
+                    label=f"{s.name} dry" if single else None)
+        if single and o.show_half_dry and a.dry_dp.size:
+            ax.plot(_p(a.dry_dp, o.units), a.dry_flow / 2000, "-", color=INK2, lw=0.9, alpha=0.8, label="half dry")
+        for dp, txt in ((a.bubble_dp, "bubble point"), (a.mean_flow_dp, "mean flow pore")):
+            if dp is None:
+                continue
+            x = float(_p(dp, o.units))
+            if single:
+                ax.axvline(x, color=INK2, lw=0.8, ls=(0, (2, 3)))
+                d = a.to_d(dp)
+                ax.annotate(f"{txt}\n{x:.1f} {o.units} · {d:.3g} µm", (x, 1), xycoords=("data", "axes fraction"),
+                            xytext=(4, -4), textcoords="offset points", va="top", fontsize=8, color=INK2)
+    ax.set_xlabel(f"Differential pressure ({o.units})")
+    ax.set_ylabel("Air flow (L/min)")
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0)
+    if o.title:
+        ax.set_title("Flow vs pressure" + ("" if single else "  (solid = wet, dotted = dry)"), loc="left")
+    if series:
+        ax.legend(loc="lower right" if single else "best", ncols=1 if len(series) < 8 else 2)
+
+
+def draw_cff(ax: Axes, series: list[Series], o: PlotOptions) -> None:
+    hl = any(s.highlighted for s in series)
+    for s in series:
+        a = s.analysis
+        if not a.dp.size:
+            continue
+        al, lw = _alpha(s, hl), _lw(s, hl)
+        ax.plot(a.diameter, a.cff, _ls(s), color=s.color, lw=lw, alpha=al,
+                marker=s.marker if o.show_markers else None, markevery=max(1, a.dp.size // 25), label=_label(s))
+        if a.mean_flow_d is not None:
+            ax.plot([a.mean_flow_d], [50], marker="o", ms=8, mfc="white", mec=s.color, mew=2, alpha=al, ls="none")
+    ax.axhline(50, color=INK2, lw=0.8, ls=(0, (2, 3)))
+    ax.axhline(100, color=INK2, lw=0.6)
+    if o.log_diameter:
+        _log_diameter_axis(ax)
+    ax.set_xlabel("Pore diameter (µm)")
+    ax.set_ylabel("Cumulative filter flow (%)")
+    ax.set_ylim(0, 110)
+    if o.title:
+        ax.set_title("Cumulative filter flow  (open circle = mean flow pore)", loc="left")
+    if series:
+        ax.legend(loc="best")
+
+
+def draw_psd(ax: Axes, series: list[Series], o: PlotOptions) -> None:
+    hl = any(s.highlighted for s in series)
+    ylab = "Pore size distribution (%/µm²)" if o.psd_weighting in ("D2", "dD2") else "Pore size distribution (%/µm)"
+    binned = o.psd_mode == "binned"
+    for s in series:
+        a = s.analysis
+        if a.dp.size < 2:
+            continue
+        al, lw = _alpha(s, hl), _lw(s, hl)
+        if binned:
+            edges, flow_pct, _dens, centres = a.binned_distribution(o.psd_bins, log=o.log_diameter)
+            if len(series) == 1:
+                ax.bar(edges[:-1], flow_pct, width=np.diff(edges), align="edge", color=s.color, alpha=0.85 * al,
+                       edgecolor="white", linewidth=1, label=_label(s))
+            else:
+                ax.step(edges, np.r_[flow_pct, flow_pct[-1]], where="post", color=s.color, lw=lw, alpha=al,
+                        ls=_ls(s), label=_label(s))
+        else:
+            d, psd, _ = a.distribution(o.psd_weighting)
+            ok = np.isfinite(psd)
+            ax.plot(d[ok], psd[ok], _ls(s), color=s.color, lw=lw, alpha=al,
+                    marker=s.marker if o.show_markers else None, markevery=max(1, ok.sum() // 25), label=_label(s))
+    if o.log_diameter:
+        _log_diameter_axis(ax)
+    ax.axhline(0, color="#b8b7b1", lw=0.8)
+    ax.set_xlabel("Pore diameter (µm)")
+    ax.set_ylabel("Flow through pores in bin (%)" if binned else ylab)
+    if o.title:
+        ax.set_title("Pore size distribution" + (f"  ({o.psd_bins} bins)" if binned else ""), loc="left")
+    if series:
+        ax.legend(loc="best")
+
+
+DRAWERS = {"flow": draw_flow, "cff": draw_cff, "psd": draw_psd}
+
+
+def make_figure(kind: str, series: list[Series], options: PlotOptions | None = None,
+                size: tuple[float, float] = (6.5, 4.2)) -> Figure:
+    """A standalone figure (for export). kind: 'flow', 'cff', 'psd' or 'all' (three panels)."""
+    o = options or PlotOptions()
+    with matplotlib.rc_context(STYLE):
+        if kind == "all":
+            fig = Figure(figsize=(size[0], size[1] * 2.6), layout="constrained")
+            axes = fig.subplots(3, 1)
+            for ax, k in zip(axes, ("flow", "cff", "psd")):
+                DRAWERS[k](ax, series, o)
+        else:
+            fig = Figure(figsize=size, layout="constrained")
+            DRAWERS[kind](fig.add_subplot(), series, o)
+    return fig
+
+
+def apply_style() -> None:
+    matplotlib.rcParams.update(STYLE)
+
+
+def series_from(analyses: Iterable[Analysis], levels: Iterable[Level] | None = None) -> list[Series]:
+    out = []
+    levels = list(levels) if levels is not None else None
+    for i, a in enumerate(analyses):
+        c, m = style_for(i)
+        out.append(Series(a, c, m, levels[i] if levels else Level.PASS))
+    return out

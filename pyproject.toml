@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "porometry-analyzer"
+version = "0.1.0"
+description = "Analyze PMI CapWin capillary flow porometry (.CFT) files: bubble point, mean flow pore, pore size distribution, QC, overlays."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Brandon T. McReynolds" }]
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+    "openpyxl>=3.1",
+    "PyQt6>=6.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+notebook = ["jupyterlab>=4", "ipykernel>=6"]
+validate = ["xlrd>=2"]  # tools/caprep_check.py reads CapRep's .xls exports
+
+[project.scripts]
+porometry-cli = "porometry.cli:main"
+
+[project.gui-scripts]
+porometry = "porometry.gui.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"porometry.gui" = ["resources/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

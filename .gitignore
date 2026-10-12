@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+*.xlsx
+.venv-mac/
+
+# Measurement data never goes in this public repo: it lives in
+# SyncThing/UAkron Playground/Capillary Flow Porometer/ (see README "Where the data lives")
+tests/data/
+*.CFT
+*.cft
+*.xls
+Report/
+
+# Scratch work and Claude Code personal files
+scratch/
+CLAUDE.local.md
+.claude/settings.local.json
