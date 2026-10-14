@@ -1,4 +1,4 @@
-# Porometry Analyzer
+# Capillary Flow Porometry Analyzer
 
 A desktop app for capillary flow porometry data from the PMI **CFP-1500AEX** (CapWin `.CFT` files).
 It reproduces CapRep's results (bubble point, mean flow pore, cumulative filter flow, pore size
@@ -21,7 +21,7 @@ so a synced copy never carries it).
 
 ### macOS
 
-Double-click **`Porometry Analyzer.command`** for the app, or **`Open Notebook.command`** for the
+Double-click **`Capillary Flow Porometry Analyzer.command`** for the app, or **`Open Notebook.command`** for the
 comparison notebook. The first launch sets everything up in `~/.venvs/porometry-analyzer`. If the files
 won't run (a copy synced from Windows loses the "executable" flag), run `chmod +x *.command` once in
 Terminal in this folder. If macOS blocks them, right-click and choose Open. You need Python 3.10+ (`brew install python`, or python.org).
@@ -31,7 +31,7 @@ Terminal in this folder. If macOS blocks them, right-click and choose Open. You 
 You need Python 3.10 or newer ([python.org](https://www.python.org/downloads/); tick
 "Add python.exe to PATH" during install).
 
-**Easiest:** double-click `Porometry Analyzer.bat`. The first launch creates a private Python
+**Easiest:** double-click `Capillary Flow Porometry Analyzer.bat`. The first launch creates a private Python
 environment in `.venv` and installs the dependencies (about a minute). Later launches open straight away.
 
 **Desktop / Start menu shortcut** (with the app icon): after the first launch, run

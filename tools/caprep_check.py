@@ -1,4 +1,4 @@
-"""Check porometry-analyzer against CapRep: compare with CapRep's own Excel reports.
+"""Check Capillary Flow Porometry Analyzer against CapRep: compare with CapRep's own Excel reports.
 
 CapRep's "export to Excel" (.xls) files sit next to the .CFT files they were made from. This script
 finds every report block, analyzes the matching .CFT with porometry.analyze(), and compares bubble

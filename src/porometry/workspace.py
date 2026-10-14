@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from .analysis import Analysis, Settings, analyze
+from .archive import archive_file, is_archived, restore_file
 from .cft import PSI_TO_KPA, CFTError, Run, read_cft
 from .figures import Series, style_for
 from .qc import Level, QCReport, QCSettings, check
@@ -84,14 +85,44 @@ class Workspace:
             added.append(e)
         return added
 
-    def add_folder(self, folder, recursive: bool = True) -> list[Entry]:
+    def add_folder(self, folder, recursive: bool = True, include_archived: bool = False) -> list[Entry]:
+        """Load every .CFT in `folder` (and subfolders). Files inside an `Archive/` folder are skipped."""
         folder = Path(folder)
         it = folder.rglob("*") if recursive else folder.glob("*")
-        files = sorted(p for p in it if p.is_file() and p.suffix.lower() == ".cft")
+        files = sorted(p for p in it if p.is_file() and p.suffix.lower() == ".cft"
+                       and (include_archived or not is_archived(p.relative_to(folder))))
         return self.add_files(files)
 
     def remove(self, entry: Entry) -> None:
+        """Drop a run from the list (the file is not touched)."""
         self.entries.remove(entry)
+
+    # ---------------------------------------------------------------- archive
+    def archive(self, entries: list[Entry], reason: str = "") -> list[Path]:
+        """Move the runs' files into `Archive/` next to them and drop them from the list.
+
+        Raises ArchiveError on the first file that can't be moved; runs archived before it stay archived.
+        """
+        moved = []
+        for e in list(entries):
+            old = str(e.path.resolve())
+            new = archive_file(e.path, reason, e.qc.status)
+            if old in self.group_overrides:  # keep a manual duplicate grouping with the file
+                self.group_overrides[str(new.resolve())] = self.group_overrides.pop(old)
+            self.entries.remove(e)
+            moved.append(new)
+        return moved
+
+    def restore(self, paths) -> list[Path]:
+        """Move archived files back out of `Archive/`. Returns the restored paths (not loaded)."""
+        restored = []
+        for p in paths:
+            old = str(Path(p).resolve())
+            new = restore_file(p)
+            if old in self.group_overrides:
+                self.group_overrides[str(new.resolve())] = self.group_overrides.pop(old)
+            restored.append(new)
+        return restored
 
     def clear(self) -> None:
         self.entries.clear()

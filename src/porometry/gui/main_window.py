@@ -19,11 +19,13 @@ from PyQt6.QtWidgets import (
 
 from .. import __version__
 from ..analysis import Settings
+from ..archive import ArchiveError, list_archived
 from ..cft import PSI_TO_KPA
 from ..export import save_figure, write_summary
 from ..figures import STATUS_COLORS, PlotOptions, apply_style, draw_cff, draw_flow, draw_psd
 from ..qc import Level, QCSettings
 from ..workspace import Entry, Workspace
+from .archive_dialog import ArchiveDialog, ArchivedRunsDialog
 from .models import DataFrameModel, color_icon, status_icon
 from .settings_dialog import SettingsDialog
 
@@ -63,13 +65,14 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         apply_style()
-        self.setWindowTitle(f"Porometry Analyzer {__version__}")
+        self.setWindowTitle(f"Capillary Flow Porometry Analyzer {__version__}")
         self.resize(1400, 900)
         self.setAcceptDrops(True)
         self.qs = QSettings("PorometryAnalyzer", "PorometryAnalyzer")
         self.ws = Workspace()
         self.group_include_warn = True
         self.highlight: str | None = None
+        self._folders: set[Path] = set()  # folders opened this session (where to look for archived runs)
         self._building = False
         self._load_prefs()
         self._build_ui()
@@ -93,7 +96,12 @@ class MainWindow(QMainWindow):
 
         act("Open folder…", self.open_folder, "Ctrl+O", "Load every .CFT file in a folder and its subfolders")
         act("Add files…", self.add_files, "Ctrl+Shift+O")
-        act("Remove", self.remove_selected, "Delete", "Remove the selected run from the list (files are not touched)")
+        act("Remove from list", self.remove_selected, "Delete",
+            "Drop the selected runs from this session's list. The files are not touched and load again next time.")
+        act("Archive…", self.archive_selected, "Ctrl+Shift+A",
+            "Move the selected runs' .CFT files into an Archive folder next to them, with a reason. "
+            "They stop loading with the folder; restore them from Archived runs…")
+        act("Archived runs…", self.show_archived, None, "List archived runs in the opened folders and restore them")
         act("Clear", self.clear_all)
         tb.addSeparator()
         act("Export summary…", self.export_summary, "Ctrl+E", "Excel: summary, group averages, QC, one sheet per run")
@@ -205,6 +213,7 @@ class MainWindow(QMainWindow):
         split.setSizes([360, 1040])
         self.setCentralWidget(split)
         self.statusBar().showMessage("Open a folder of .CFT files, or drag files or folders onto this window.")
+        self.statusBar().addPermanentWidget(QLabel(f"v{__version__}  "))
 
         geo = self.qs.value("geometry")
         if isinstance(geo, QByteArray):
@@ -262,6 +271,7 @@ class MainWindow(QMainWindow):
         d = QFileDialog.getExistingDirectory(self, "Open folder of .CFT files", self._last_dir())
         if d:
             self.qs.setValue("last_dir", d)
+            self._folders.add(Path(d))
             self._load(lambda: self.ws.add_folder(d))
 
     def add_files(self):
@@ -276,6 +286,7 @@ class MainWindow(QMainWindow):
             added = []
             for p in map(Path, paths):
                 if p.is_dir():
+                    self._folders.add(p)
                     added += self.ws.add_folder(p)
                 elif p.suffix.lower() == ".cft":
                     added += self.ws.add_files([p])
@@ -311,6 +322,54 @@ class MainWindow(QMainWindow):
         if sel:
             self.highlight = None
             self._refresh_all()
+
+    # ================================================================== archive
+    def archive_selected(self):
+        sel = self._selected_entries() or [e for e in [self._entry(self.highlight)] if e]
+        if not sel:
+            QMessageBox.information(self, "Archive", "Select the runs to archive first (Ctrl- or Shift-click).")
+            return
+        dlg = ArchiveDialog(sel, self)
+        if not dlg.exec():
+            return
+        self._folders.update(e.path.parent for e in sel)
+        try:
+            moved = self.ws.archive(sel, dlg.value())
+        except ArchiveError as exc:
+            QMessageBox.warning(self, "Archive", f"Could not archive every run:\n{exc}")
+            moved = None
+        self.highlight = None
+        self._save_prefs()
+        self._refresh_all()
+        if moved:
+            self.statusBar().showMessage(f"Archived {len(moved)} run(s) to {moved[0].parent}", 8000)
+
+    def _archive_search_folders(self) -> list[Path]:
+        folders = set(self._folders) | {e.path.parent for e in self.ws.entries}
+        last = Path(self._last_dir())
+        if last.is_dir():
+            folders.add(last)
+        # drop folders already covered by a parent in the set
+        return sorted(f for f in folders if not any(p != f and p in f.parents for p in folders))
+
+    def show_archived(self):
+        folders = self._archive_search_folders()
+        self.setCursor(Qt.CursorShape.WaitCursor)
+        try:
+            runs = list_archived(folders)
+        finally:
+            self.unsetCursor()
+        dlg = ArchivedRunsDialog(runs, folders, self)
+        if not dlg.exec() or not dlg.restore_paths:
+            return
+        try:
+            restored = self.ws.restore(dlg.restore_paths)
+        except ArchiveError as exc:
+            QMessageBox.warning(self, "Restore", str(exc))
+            return
+        self._save_prefs()
+        self._load(lambda: self.ws.add_files(restored))
+        self.statusBar().showMessage(f"Restored and loaded {len(restored)} run(s)", 8000)
 
     # ================================================================== duplicates
     def _selected_entries(self) -> list[Entry]:
@@ -354,6 +413,7 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addAction("Show only these", lambda: self._set_visible(lambda e: e in sel))
         m.addAction("Remove from list", self.remove_selected)
+        m.addAction(f"Archive {len(sel)} run(s)…", self.archive_selected)
         m.exec(self.tree.viewport().mapToGlobal(pos))
 
     def _group_op(self, fn, sel):

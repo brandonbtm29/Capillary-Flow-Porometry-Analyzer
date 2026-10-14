@@ -143,3 +143,50 @@ def test_powerpoint_deck(tmp_path):
     assert table.cell(0, 0).text == "Run"  # run names first
     assert [table.cell(i, 1).text for i in (1, 2)] == ["0.25", "2"]
     assert [table.cell(i, 2).text for i in (1, 2)] == ["1.41", "0.90"]  # same decimals down a column
+
+
+# ---------------------------------------------------------------- archive
+def test_archive_moves_file_logs_reason_and_restores(tmp_path):
+    from porometry.archive import ArchiveError, is_archived, list_archived
+    from porometry.workspace import Workspace
+
+    day = tmp_path / "Data" / "2026-10-11"
+    day.mkdir(parents=True)
+    write_cft(day / "CFP-0_25MM_MIN_T1.CFT")
+    write_cft(day / "CFP-0_70MM_MIN_T1.CFT")
+    ws = Workspace()
+    ws.add_folder(tmp_path)
+    assert len(ws.entries) == 2
+    bad = next(e for e in ws.entries if "0_25" in e.name)
+    ws.set_group([bad], "manual group")
+
+    (new,) = ws.archive([bad], reason="torn sample")
+    assert new == day / "Archive" / "CFP-0_25MM_MIN_T1.CFT" and new.exists()
+    assert not (day / "CFP-0_25MM_MIN_T1.CFT").exists() and is_archived(new)
+    assert [e.name for e in ws.entries] == ["CFP-0_70MM_MIN_T1"]
+    assert ws.group_overrides[str(new.resolve())] == "manual group"
+
+    # a fresh load of the folder skips the archive; asking for it includes it
+    assert [e.name for e in Workspace().add_folder(tmp_path)] == ["CFP-0_70MM_MIN_T1"]
+    assert len(Workspace().add_folder(tmp_path, include_archived=True)) == 2
+    # loading the Archive folder itself still works (it is the folder you asked for)
+    assert len(Workspace().add_folder(day / "Archive")) == 1
+
+    (listed,) = list_archived([tmp_path])
+    assert listed.path == new and listed.reason == "torn sample" and listed.archived_at
+
+    # same name archived again: both kept
+    write_cft(day / "CFP-0_25MM_MIN_T1.CFT")
+    ws2 = Workspace()
+    ws2.add_folder(day)
+    second = ws2.archive([e for e in ws2.entries if "0_25" in e.name])[0]
+    assert second.name == "CFP-0_25MM_MIN_T1 (2).CFT"
+    assert len(list_archived([day])) == 2
+
+    # restore refuses to overwrite, then works once the name is free
+    (restored,) = ws.restore([new])
+    assert restored == day / "CFP-0_25MM_MIN_T1.CFT" and restored.exists() and not new.exists()
+    with pytest.raises(ArchiveError):
+        ws.restore([second.with_name("CFP-0_25MM_MIN_T1.CFT")])  # not in Archive any more
+    log = (day / "Archive" / "archive_log.csv").read_text(encoding="utf-8")
+    assert "archived" in log and "restored" in log and "torn sample" in log

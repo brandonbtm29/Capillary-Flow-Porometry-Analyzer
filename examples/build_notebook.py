@@ -25,7 +25,7 @@ import os
 from pathlib import Path
 
 def find_repo():
-    \"\"\"The porometry-analyzer folder (works whether the notebook runs from examples/ or the repo root).\"\"\"
+    \"\"\"The Capillary-Flow-Porometry-Analyzer repo folder (works whether the notebook runs from examples/ or the repo root).\"\"\"
     for d in [Path.cwd(), *Path.cwd().parents]:
         if (d / "pyproject.toml").exists() and (d / "src" / "porometry").exists():
             return d
@@ -322,7 +322,7 @@ if SLIDES:
         tables=[("Pore sizes", sizes, "Smallest pore is blank when the run ended before wet flow met dry flow."),
                 (f"Pressures ({UNITS}) and flows", flows)],
         figures=figures,
-        footer="CFP-1500AEX, analyzed with Porometry Analyzer (CapRep calculations)",
+        footer="CFP-1500AEX, analyzed with Capillary Flow Porometry Analyzer (CapRep calculations)",
     )
     print("wrote", deck)
 else:

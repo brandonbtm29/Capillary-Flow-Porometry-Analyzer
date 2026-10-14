@@ -1,8 +1,8 @@
 @echo off
-rem Double-click to start Porometry Analyzer. First run sets up a private Python environment (.venv).
+rem Double-click to start Capillary Flow Porometry Analyzer. First run sets up a private Python environment (.venv).
 cd /d "%~dp0"
 if not exist ".venv\Scripts\pythonw.exe" (
-    echo Setting up Porometry Analyzer for the first time - this takes about a minute...
+    echo Setting up Capillary Flow Porometry Analyzer for the first time - this takes about a minute...
     py -3 -m venv .venv 2>nul || python -m venv .venv
     if errorlevel 1 (
         echo Could not create the environment. Install Python 3.10+ from python.org and tick "Add python.exe to PATH".

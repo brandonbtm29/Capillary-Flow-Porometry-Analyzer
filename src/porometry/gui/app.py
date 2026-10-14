@@ -24,7 +24,7 @@ def main(argv: list[str] | None = None) -> int:
 
     argv = sys.argv if argv is None else argv
     app = QApplication(argv)
-    app.setApplicationName("Porometry Analyzer")
+    app.setApplicationName("Capillary Flow Porometry Analyzer")
     app.setOrganizationName("PorometryAnalyzer")
     res = Path(__file__).parent / "resources"
     icon = QIcon(str(res / "porometry.ico")) if (res / "porometry.ico").exists() else QIcon(str(res / "porometry_256.png"))

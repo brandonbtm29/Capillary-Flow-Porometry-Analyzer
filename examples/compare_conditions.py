@@ -127,7 +127,7 @@ def main(argv=None) -> int:
                                            "Wet/dry flow at max")),
                        ("Pressures (kPa) and flows", pick("Run", "Thickness", "Bubble point", "Mean flow pressure",
                                                           "Max pressure", "Dry flow at 50"))],
-               figures=figs, footer="CFP-1500AEX, analyzed with Porometry Analyzer (CapRep calculations)")
+               figures=figs, footer="CFP-1500AEX, analyzed with Capillary Flow Porometry Analyzer (CapRep calculations)")
     with pd.option_context("display.width", 250, "display.max_columns", 30):
         print(df.drop(columns=["QC issues"]).to_string(index=False))
         print(df[["Run", "QC issues"]].to_string(index=False))

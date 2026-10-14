@@ -3,8 +3,8 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "porometry-analyzer"
-version = "0.1.0"
+name = "capillary-flow-porometry-analyzer"
+dynamic = ["version"]
 description = "Analyze PMI CapWin capillary flow porometry (.CFT) files: bubble point, mean flow pore, pore size distribution, QC, overlays."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -29,6 +29,9 @@ porometry-cli = "porometry.cli:main"
 
 [project.gui-scripts]
 porometry = "porometry.gui.app:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "porometry.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
