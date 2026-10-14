@@ -55,38 +55,84 @@ pytest               # tests
 
 ## Using the app
 
+The window has the run list on the left, plots and tables in the middle, and **Plot options** on the right
+(close it from its corner; bring it back with *Plot > Plot options panel*). Everything is in the menus
+(File, Runs, Plot, Tools, Help); the toolbar keeps the common actions.
+
 1. **Open folder…** (or drag a folder or `.CFT` files onto the window). Subfolders are included.
-2. Tick runs in the left panel to plot them. Click a run to highlight it and read its header and QC
-   findings under **Run details**.
-3. Switch between **Flow vs pressure**, **Cumulative filter flow** and **Pore size distribution** tabs.
-   The toolbar sets units, log/linear diameter axis, and distribution style: point-by-point like CapRep,
-   D²-weighted, or a histogram with N bins.
-4. **Duplicates:** select runs (Ctrl/Shift-click), then click **Mark selected as duplicates…** or
-   right-click for *Not duplicates* / *Reset to automatic grouping*. The **Groups (mean ± SD)** table
-   averages each group. Runs that fail QC are never averaged; runs with warnings are averaged by default,
-   which you can turn off in Settings. Your choices are remembered between sessions.
-5. **Export summary…** writes an Excel workbook with these sheets:
-   - Summary
-   - Groups
-   - QC
-   - one sheet per run, with the point-by-point table and raw curves
+2. Tick runs to plot them. Click a run to highlight it and read its header, tags and QC findings under
+   **Run details**.
+3. Tabs: **Flow vs pressure**, **Cumulative filter flow**, **Pore size distribution** and **Compare groups**.
 
-   **Export figure** saves the current plot, or all three plots stacked in one figure.
+### Tags and groups
 
-6. **Settings… > Create app icon** remakes the Desktop / Start menu icon (Windows) or the app in
-   `~/Applications` (macOS). Use it if the icon goes missing or the app folder moves.
-7. **Archive…** moves bad or practice runs into an `Archive` folder next to them, with a reason logged in
-   `Archive/archive_log.csv`. They stop loading with the folder; **Archived runs…** brings them back.
-   **Remove from list** only hides a run for this session.
+Every run has tags: **Condition**, **Sample**, **Replicate** and **Folder**, read from the file name
+(`CFP-0_25MM_MIN_S1_TEST2` → Condition *0.25 mm/min*, Sample *S1*, Replicate *2*) and the folder.
 
-A run that fails QC is still plotted, drawn dashed and labelled `[QC fail]`, so you can see what went
-wrong.
+- **Change a tag:** double-click its cell in the run list, or select several runs (Ctrl/Shift-click) and use
+  **Set Condition…** (or right-click > *Set field*). A blank value goes back to the automatic one. Values
+  you set are shown in italics.
+- **Your own fields:** *Runs > Add field…* (e.g. Membrane, Batch, Treatment).
+- Tags you change are saved in **`run_tags.csv` next to the `.CFT` files**, so they travel with the data
+  (SyncThing) and open in Excel. Only the fields you changed are stored there.
+- **Average by** (Plot options) picks the field that groups runs: the run list, the **Groups (mean ± SD)**
+  table, group means, the Compare chart and the statistics all use it. Runs that fail QC are never averaged;
+  runs with warnings are, unless you turn that off in Settings.
+
+### Colours, markers and plot options
+
+- **Colour by** *Run* gives every run its own colour. Colour by a field (e.g. Condition) gives runs with the
+  same value one colour and different markers.
+- **Palette:** colour-blind safe (default), *Viridis* or *Cividis* for ordered series such as speeds,
+  Tableau 10, or greys for print. **Group colours…** sets a colour per value.
+- **Style…** (or right-click a run) sets a run's colour, marker, line style, line width and legend label.
+- **Show:** individual runs, **group means ± SD** (a shaded band), or both. Means are averaged where every
+  run in the group has data.
+- **Axis limits** apply to the plot you're looking at (blank = automatic). Also: pressure units,
+  log/linear diameter axis, distribution style (point-by-point like CapRep, D²-weighted, or a histogram),
+  markers, line width, legend position (including outside the plot) and titles.
+
+### Compare groups and statistics
+
+The **Compare groups** tab plots one number per group (mean flow pore, largest pore, smallest pore, bubble
+point or mean flow pressure; pick it under *Compare*): every run as a point and the group mean ± SD. Runs
+left out by QC show as grey crosses. The **Statistics** table and the plot title give Welch's t-test for
+two groups, or one-way ANOVA with Tukey's pairwise comparisons for three or more. Groups with a single
+run are left out of the tests.
+
+### Sessions
+
+**File > Save session** (Ctrl+S) stores the loaded runs, which are shown, styles, colours, grouping and
+plot settings in a `.cfpa` file. Reopen it with *Open session*, *Recent sessions*, or by dragging it onto
+the window. Save sessions next to your data in SyncThing: paths are stored relative to the session file,
+so the same session opens on the Mac and the PC.
+
+### Exporting
+
+- **Export summary…** writes an Excel workbook: Summary (with tags), Groups, Statistics, QC, and one sheet
+  per run with the point-by-point table and raw curves.
+- **Export figure…** saves any plot (or the three curves stacked) at a journal size: single column
+  (8.5 cm), 1.5 columns, double column (17.8 cm), a 16:9 slide, or your own size. It sets the font size and
+  resolution (300 to 1200 dpi), shows a preview, and saves PNG, TIFF, SVG or PDF at exactly that size.
+  Titles are off by default because journals put them in the caption.
+- **Copy figure** (Ctrl+Shift+C) puts the current plot on the clipboard at the last export size, ready to
+  paste into Word or PowerPoint.
+
+### Other
+
+- **Archive…** moves bad or practice runs into an `Archive` folder next to them, with a reason logged in
+  `Archive/archive_log.csv`. They stop loading with the folder; **Archived runs…** brings them back.
+  **Remove from list** only hides a run for this session.
+- **Tools > Create app icon** remakes the Desktop / Start menu icon (Windows) or the app in
+  `~/Applications` (macOS). Use it if the icon goes missing or the app folder moves.
+- A run that fails QC is still plotted, drawn dashed and labelled `[QC fail]`, so you can see what went
+  wrong.
 
 ### Updating
 
 The version you have is in the bottom-right corner. The app checks GitHub when it starts; when a newer
-version exists, that corner turns into a link (*v0.3.0 → v0.4.0 available*). Click it, or **Update…** in
-the toolbar, to see what's new and **Update and restart**. The update pulls the new version into this
+version exists, that corner turns into a link (*v0.4.0 → v0.5.0 available*). Click it, or *Help > Check
+for updates*, to see what's new and **Update and restart**. The update pulls the new version into this
 folder (`git pull`), reinstalls dependencies if they changed, and reopens the runs you had loaded. Your data
 and settings are not touched. It needs git, and it won't run if files in the app folder have local changes.
 Turn off the start-up check in the same window. What changed in each version is in `CHANGELOG.md`.
@@ -179,6 +225,9 @@ src/porometry/
   qc.py         data quality checks
   workspace.py  loaded runs, grouping, summary tables
   archive.py    move runs to Archive/ and back
+  tags.py       run tags from file names + run_tags.csv next to the data
+  groups.py     group mean curves, compare metrics, t-test / ANOVA / Tukey
+  session.py    save / open .cfpa sessions
   updater.py    check GitHub for a newer version, update the git clone
   shortcuts.py  app icon: Windows shortcuts, macOS .app bundle, Linux .desktop entry
   export.py     Excel / CSV / figure export

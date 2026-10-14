@@ -36,7 +36,7 @@ def _ispin(value, lo, hi):
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, settings: Settings, qc: QCSettings, group_mode: str, group_include_warn: bool, parent=None):
+    def __init__(self, settings: Settings, qc: QCSettings, group_include_warn: bool, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setMinimumWidth(460)
@@ -84,13 +84,9 @@ class SettingsDialog(QDialog):
         lay.addWidget(box)
 
         # --- grouping
-        box = QGroupBox("Duplicates")
+        box = QGroupBox("Group averages")
         f = QFormLayout(box)
-        self.group = QComboBox()
-        self.group.addItem("By file name (strip _TEST#, _S#)", "name")
-        self.group.addItem("By folder", "folder")
-        self.group.setCurrentIndex(0 if group_mode == "name" else 1)
-        f.addRow("Group runs", self.group)
+        f.addRow(QLabel("Which field groups runs is set in the Plot options panel (Average by)."))
         self.inc_warn = QCheckBox("Include runs with warnings in group averages")
         self.inc_warn.setChecked(group_include_warn)
         f.addRow(self.inc_warn)
@@ -143,10 +139,9 @@ class SettingsDialog(QDialog):
         self.leak_cff.setValue(q.leak_cff)
         self.over.setValue(q.wet_above_dry_cff)
         self.closed.setValue(q.wet_meets_dry_cff)
-        self.group.setCurrentIndex(0)
         self.inc_warn.setChecked(True)
 
-    def values(self) -> tuple[Settings, QCSettings, str, bool]:
+    def values(self) -> tuple[Settings, QCSettings, bool]:
         s = Settings(
             shape_factor=self.shape.value(),
             bubble_flow_threshold=self.bp.value(),
@@ -163,4 +158,4 @@ class SettingsDialog(QDialog):
             wet_above_dry_cff=self.over.value(),
             wet_meets_dry_cff=self.closed.value(),
         )
-        return s, q, self.group.currentData(), self.inc_warn.isChecked()
+        return s, q, self.inc_warn.isChecked()

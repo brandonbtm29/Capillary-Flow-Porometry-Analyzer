@@ -154,17 +154,19 @@ def test_archive_moves_file_logs_reason_and_restores(tmp_path):
     day.mkdir(parents=True)
     write_cft(day / "CFP-0_25MM_MIN_T1.CFT")
     write_cft(day / "CFP-0_70MM_MIN_T1.CFT")
-    ws = Workspace()
+    from porometry.tags import SidecarTags
+    ws = Workspace(tag_store=SidecarTags())  # the real run_tags.csv, in this temporary folder
     ws.add_folder(tmp_path)
     assert len(ws.entries) == 2
     bad = next(e for e in ws.entries if "0_25" in e.name)
-    ws.set_group([bad], "manual group")
+    ws.set_group([bad], "manual group")  # sets the Condition tag, saved in run_tags.csv next to the file
+    ws.set_style([bad], color="#123456")
 
     (new,) = ws.archive([bad], reason="torn sample")
     assert new == day / "Archive" / "CFP-0_25MM_MIN_T1.CFT" and new.exists()
     assert not (day / "CFP-0_25MM_MIN_T1.CFT").exists() and is_archived(new)
     assert [e.name for e in ws.entries] == ["CFP-0_70MM_MIN_T1"]
-    assert ws.group_overrides[str(new.resolve())] == "manual group"
+    assert ws.run_styles[str(new.resolve())] == {"color": "#123456"}  # style follows the file
 
     # a fresh load of the folder skips the archive; asking for it includes it
     assert [e.name for e in Workspace().add_folder(tmp_path)] == ["CFP-0_70MM_MIN_T1"]
@@ -188,5 +190,8 @@ def test_archive_moves_file_logs_reason_and_restores(tmp_path):
     assert restored == day / "CFP-0_25MM_MIN_T1.CFT" and restored.exists() and not new.exists()
     with pytest.raises(ArchiveError):
         ws.restore([second.with_name("CFP-0_25MM_MIN_T1.CFT")])  # not in Archive any more
+    back = Workspace(tag_store=SidecarTags())
+    back.add_files([restored])
+    assert back.entries[0].tags["Condition"] == "manual group"  # tag comes back with the file
     log = (day / "Archive" / "archive_log.csv").read_text(encoding="utf-8")
     assert "archived" in log and "restored" in log and "torn sample" in log

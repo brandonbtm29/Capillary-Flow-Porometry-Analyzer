@@ -5,6 +5,6 @@ from .cft import PSI_TO_KPA, Run, read_cft
 from .qc import Level, QCSettings, check
 from .workspace import Workspace
 
-__version__ = "0.3.2"  # single source of the version: pyproject.toml reads it; see CHANGELOG.md
+__version__ = "0.4.0"  # single source of the version: pyproject.toml reads it; see CHANGELOG.md
 __all__ = ["Analysis", "Settings", "analyze", "PSI_TO_KPA", "Run", "read_cft", "Level", "QCSettings", "check",
            "Workspace"]

@@ -55,7 +55,7 @@ def _sheet_name(name: str, used: set[str]) -> str:
 
 def write_summary(ws: Workspace, path: str | Path, units: str = "kPa", per_run_sheets: bool = True,
                   group_max_level: Level = Level.WARN) -> Path:
-    """CSV (summary only) or Excel (Summary, Groups, QC and one sheet per run)."""
+    """CSV (summary only) or Excel (Summary, Groups, Statistics, QC and one sheet per run)."""
     path = Path(path)
     summary = ws.summary_frame(units)
     if path.suffix.lower() == ".csv":
@@ -68,9 +68,10 @@ def write_summary(ws: Workspace, path: str | Path, units: str = "kPa", per_run_s
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
         summary.to_excel(xw, sheet_name="Summary", index=False)
         ws.group_frame(group_max_level).to_excel(xw, sheet_name="Groups", index=False)
+        ws.stats_frame(units=units, max_level=group_max_level).to_excel(xw, sheet_name="Statistics", index=False)
         pd.DataFrame(qc_rows, columns=["Run", "Level", "Check", "Detail"]).to_excel(xw, sheet_name="QC", index=False)
         if per_run_sheets:
-            used = {"Summary", "Groups", "QC"}
+            used = {"Summary", "Groups", "Statistics", "QC"}
             for e in ws.entries:
                 name = _sheet_name(e.name, used)
                 t = run_table(e.analysis, units)
@@ -85,9 +86,19 @@ def write_summary(ws: Workspace, path: str | Path, units: str = "kPa", per_run_s
     return path
 
 
+def figure_for(ws: Workspace, kind: str, options: PlotOptions | None = None, highlight: str | None = None,
+               size: tuple[float, float] = (6.5, 4.2), font_pt: float | None = None,
+               group_max_level: Level = Level.WARN):
+    """The figure the app shows for `kind`, at an export size (inches) and font size."""
+    o = options or PlotOptions()
+    groups = ws.group_data(group_max_level) if (o.display != "runs" or kind == "compare") else None
+    return make_figure(kind, ws.series(highlight=highlight), o, size=size, groups=groups, font_pt=font_pt)
+
+
 def save_figure(ws: Workspace, kind: str, path: str | Path, options: PlotOptions | None = None,
-                highlight: str | None = None, size: tuple[float, float] = (6.5, 4.2)) -> Path:
+                highlight: str | None = None, size: tuple[float, float] = (6.5, 4.2), font_pt: float | None = None,
+                dpi: int = 300, transparent: bool = False, group_max_level: Level = Level.WARN) -> Path:
     path = Path(path)
-    fig = make_figure(kind, ws.series(highlight=highlight), options, size=size)
-    fig.savefig(path)
+    fig = figure_for(ws, kind, options, highlight, size, font_pt, group_max_level)
+    fig.savefig(path, dpi=dpi, transparent=transparent)
     return path

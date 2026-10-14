@@ -1,7 +1,6 @@
 """Headless smoke test of the main window (runs with QT_QPA_PLATFORM=offscreen)."""
 
 import os
-from pathlib import Path
 
 import pytest
 
@@ -15,24 +14,17 @@ pytestmark = needs_data
 
 @pytest.fixture(scope="module")
 def app():
-    from PyQt6.QtCore import QSettings
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
     a = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     yield a
 
 
 @pytest.fixture
-def win(app, tmp_path):
-    from PyQt6.QtCore import QSettings
-    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path))
+def win(app):
     from porometry.gui.main_window import MainWindow
-    w = MainWindow()
-    w.qs.clear()
+    w = MainWindow()  # settings go to a temporary file and tags stay in memory (tests/conftest.py)
     w.show()
     yield w
     w.close()
-    w.qs.clear()  # don't leave test settings behind for the real app
-    w.qs.sync()
 
 
 def test_load_select_and_switch_options(win, tmp_path):
@@ -45,12 +37,17 @@ def test_load_select_and_switch_options(win, tmp_path):
     assert "Mean flow pore" in win.details.toPlainText()
     assert f"{EXPECTED['good_run']['mean_flow_um']:.3f}" in win.details.toPlainText()
     # unit toggle updates the table header
-    win.units.setCurrentText("psi")
+    o = win.options
+    o.units.setCurrentIndex(o.units.findData("psi"))
     assert "Bubble point (psi)" in list(win.run_model.frame.columns)
-    win.units.setCurrentText("kPa")
+    o.units.setCurrentIndex(o.units.findData("kPa"))
     # histogram mode enables bins
-    win.psd_mode.setCurrentIndex(2)
-    assert win.bins.isEnabled()
+    o.psd_mode.setCurrentIndex(2)
+    assert o.bins.isEnabled()
+    # group means and the compare chart draw on real data
+    o.display.setCurrentIndex(o.display.findData("both"))
+    o.average_by.setCurrentIndex(o.average_by.findData("Condition"))
+    assert "0.25 mm/min" in [win.tree.topLevelItem(i).text(0) for i in range(win.tree.topLevelItemCount())]
     # hide fails -> only the warn run is visible
     win._set_visible(lambda e: e.qc.level < 3)
     assert [e.name for e in win.ws.entries if e.visible] == ["CFP-0_25MM_MIN_TEST1"]

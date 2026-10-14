@@ -10,6 +10,44 @@ Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**
 Each release is tagged `vX.Y.Z` on GitHub. The version shows in the window title and the bottom-right corner
 of the app.
 
+## 0.4.0 - 2026-10-14
+
+### Added
+- **Tags for every run:** Condition, Sample, Replicate and Folder, read from the file name
+  (`CFP-0_25MM_MIN_S1_TEST2` → *0.25 mm/min*, *S1*, *2*) and the folder. Edit them in the run list
+  (double-click a cell) or for several runs at once (*Set Condition…*), and add your own fields
+  (*Runs > Add field…*). Your changes are saved in `run_tags.csv` next to the data, so they sync between
+  computers and open in Excel.
+- **Average by / Colour by:** group runs by any field. Runs that share a value can share a colour, with a
+  different marker each.
+- **Group means ± SD:** plot the average curve of each group with a shaded band, alone or over the
+  individual runs.
+- **Compare groups tab and Statistics table:** one number per group (mean flow pore, largest or smallest
+  pore, bubble point or mean flow pressure) with every run shown, mean ± SD, and Welch's t-test or ANOVA +
+  Tukey's pairwise comparisons. The Excel export gets a Statistics sheet.
+- **Styling:** per-run colour, marker, line style, line width and legend label (*Style…*); a colour per
+  group (*Group colours…*); palettes, including Viridis/Cividis for ordered series like speeds; legend
+  position (including outside the plot); axis limits per plot; line width; titles on/off.
+- **Sessions:** *File > Save session* keeps the loaded runs, what's shown, styles and plot settings in a
+  `.cfpa` file that opens on both the Mac and the PC (paths relative to the session file). There are recent
+  sessions, and you can drag a session onto the window.
+- **Publication export:** *Export figure…* saves at journal sizes (single column 8.5 cm, 1.5 columns,
+  double column 17.8 cm, a slide, or custom), with font size, 300 to 1200 dpi, a preview, and PNG/TIFF/SVG/PDF
+  at exactly that size. *Copy figure* (Ctrl+Shift+C) puts the plot on the clipboard.
+
+### Changed
+- **Menus and a shorter toolbar.** File, Runs, Plot, Tools and Help menus; units, axes, distribution and
+  colours moved to the **Plot options** panel on the right. On a Mac the menus sit at the top of the screen.
+- "Mark as duplicates" is now **Set Condition…** (or any field). Duplicate groups you made before carry
+  over as the Condition of those runs.
+- Group names read better: *0.25 mm/min* instead of *CFP-0_25MM_MIN*.
+- The *Group runs by file name / folder* setting is replaced by **Average by** in the Plot options panel.
+- Needs scipy (for the statistics). The Update button installs it.
+
+### Fixed
+- Running the tests on this computer no longer resets the app's saved settings (window size, last folder,
+  plot options).
+
 ## 0.3.2 - 2026-10-13
 
 ### Fixed

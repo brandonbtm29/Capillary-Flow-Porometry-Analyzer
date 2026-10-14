@@ -97,6 +97,6 @@ def test_settings_create_app_icon_button(app, monkeypatch, tmp_path):
     made, shown = [tmp_path / "icon.lnk"], []
     monkeypatch.setattr(shortcuts, "create", lambda: made)
     monkeypatch.setattr(settings_dialog.QMessageBox, "information", lambda *a: shown.append(a[2]))
-    d = settings_dialog.SettingsDialog(Settings(), QCSettings(), "name", True)
+    d = settings_dialog.SettingsDialog(Settings(), QCSettings(), True)
     d.icon_btn.click()
     assert shown and "icon.lnk" in shown[0]

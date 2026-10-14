@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 import pytest
 
@@ -112,14 +110,14 @@ def test_workspace_and_exports(tmp_path):
     s = ws.summary_frame()
     assert set(s["QC"]) <= {"pass", "info", "warn", "fail"}
     g = ws.group_frame()
-    row = g[g["Group"] == "CFP-0_25MM_MIN"].iloc[0]
+    row = g[g["Group"] == "0.25 mm/min"].iloc[0]  # Condition from the file name
     assert row["Runs"] == 3 and row["Used"] == 1
     assert row["Mean flow pore mean (µm)"] == pytest.approx(EXPECTED["good_run"]["mean_flow_um"], abs=0.002)
 
     x = write_summary(ws, tmp_path / "out.xlsx")
     import openpyxl
     wb = openpyxl.load_workbook(x)
-    assert {"Summary", "Groups", "QC"} <= set(wb.sheetnames) and len(wb.sheetnames) == 13
+    assert {"Summary", "Groups", "Statistics", "QC"} <= set(wb.sheetnames) and len(wb.sheetnames) == 14
     write_summary(ws, tmp_path / "out.csv")
     assert (tmp_path / "out.csv").read_text(encoding="utf-8-sig").startswith("Run,")
     for kind in ("flow", "cff", "psd", "all"):
@@ -154,7 +152,7 @@ def test_manual_duplicate_groups():
     ws.separate([a])
     assert a.group == a.name
     ws.reset_group([a])
-    assert a.group == "CFP-0_25MM_MIN"
+    assert a.group == "0.25 mm/min"
 
 
 def test_startup_blip_near_zero_pressure_is_ignored():
