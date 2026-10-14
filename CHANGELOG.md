@@ -1,11 +1,11 @@
 # Changelog
 
-Versions are **MAJOR.MINOR.PATCH**, in the style of [semantic versioning](https://semver.org):
+Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**.
 
-- **Middle digit** (0.3 → 0.4): a bigger feature or a change in how the app works that you'd notice.
-- **Last digit** (0.3.1 → 0.3.2): small changes and bug fixes.
-- **First digit**: goes to 1.0.0 once the app is complete and trusted enough for the rest of the lab to use
-  without help. After that, it goes up only for changes that break old habits or files.
+- **MINOR** (0.3 → 0.4): new features, or behaviour you'd notice.
+- **PATCH** (0.3.1 → 0.3.2): bug fixes only.
+- **MAJOR**: 1.0.0 once the app is complete and trusted enough for the rest of the lab to use without help.
+  After that, MAJOR goes up only for changes that break existing files, settings or workflows.
 
 Each release is tagged `vX.Y.Z` on GitHub. The version shows in the window title and the bottom-right corner
 of the app.
