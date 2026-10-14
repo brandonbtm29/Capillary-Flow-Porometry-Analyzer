@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import ssl
 import subprocess
 import sys
 import urllib.request
@@ -68,33 +69,90 @@ class UpdateInfo:
         return bool(self.latest) and is_newer(self.latest, self.current)
 
 
+def _ssl_context() -> ssl.SSLContext:
+    """certifi's certificates when available: python.org's macOS Python has none until its
+    "Install Certificates.command" is run (CERTIFICATE_VERIFY_FAILED)."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
 def _fetch(url: str, timeout: float) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": f"capillary-flow-porometry-analyzer/{__version__}",
                                                "Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (fixed https URLs)
+    with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as r:  # noqa: S310 (fixed URLs)
         return r.read().decode("utf-8")
 
 
-def check(current: str = __version__, timeout: float = 8.0,
-          fetch: Callable[[str, float], str] = _fetch) -> UpdateInfo:
-    """Ask GitHub for the newest vX.Y.Z tag. Never raises: problems end up in `.error`."""
+def _latest(tags: list[str]) -> str | None:
+    versions = [t for t in tags if parse_version(t)]
+    return max(versions, key=parse_version) if versions else None
+
+
+def _check_git(repo: Path, current: str, timeout: float) -> UpdateInfo:
+    """Tags via `git ls-remote`, notes from the fetched CHANGELOG.md. Uses git's own network and
+    certificate setup, the same path the update itself takes."""
     info = UpdateInfo(current)
-    try:
-        tags = [t.get("name", "") for t in json.loads(fetch(TAGS_URL, timeout))]
-        versions = [t for t in tags if parse_version(t)]
-        if not versions:
-            info.error = "No released versions found on GitHub."
-            return info
-        latest = max(versions, key=parse_version)
-        info.latest = latest.lstrip("v")
-        if info.available:
-            try:
-                info.notes = notes_since(fetch(CHANGELOG_URL.format(ref=latest), timeout), current)
-            except Exception:  # notes are nice to have
-                info.notes = ""
-    except Exception as exc:  # offline, proxy, rate limit, ...
-        info.error = f"Could not reach GitHub ({exc.__class__.__name__}: {exc})."
+    out = _git(repo, "ls-remote", "--tags", "--refs", "origin", timeout=timeout + 22)
+    latest = _latest([ln.split("refs/tags/", 1)[1] for ln in out.splitlines() if "refs/tags/" in ln])
+    if latest is None:
+        info.error = "No released versions found on GitHub."
+        return info
+    info.latest = latest.lstrip("v")
+    if info.available:
+        try:  # downloads the new commits (doesn't change any files) to read their CHANGELOG.md
+            _git(repo, "fetch", "--quiet", "origin", BRANCH, timeout=120)
+            info.notes = notes_since(_git(repo, "show", f"origin/{BRANCH}:CHANGELOG.md", strip=False), current)
+        except UpdateError:
+            info.notes = ""
     return info
+
+
+def _check_https(current: str, timeout: float, fetch: Callable[[str, float], str]) -> UpdateInfo:
+    info = UpdateInfo(current)
+    latest = _latest([t.get("name", "") for t in json.loads(fetch(TAGS_URL, timeout))])
+    if latest is None:
+        info.error = "No released versions found on GitHub."
+        return info
+    info.latest = latest.lstrip("v")
+    if info.available:
+        try:
+            info.notes = notes_since(fetch(CHANGELOG_URL.format(ref=latest), timeout), current)
+        except Exception:  # notes are nice to have
+            info.notes = ""
+    return info
+
+
+def _explain(exc: Exception) -> str:
+    text = f"{exc.__class__.__name__}: {exc}"
+    if "CERTIFICATE_VERIFY_FAILED" in text:
+        hint = ("Python on this computer can't verify GitHub's security certificate. On a Mac with Python from "
+                "python.org, run 'Install Certificates.command' in Applications > Python 3.x")
+        return f"{hint} ({text})"
+    return text
+
+
+def check(current: str = __version__, timeout: float = 8.0,
+          fetch: Callable[[str, float], str] = _fetch, repo: Path | None | str = "auto") -> UpdateInfo:
+    """Find the newest vX.Y.Z tag on GitHub. Never raises: problems end up in `.error`.
+
+    Asks git first when running from a clone (`repo="auto"`), then the GitHub web API.
+    """
+    if repo == "auto":
+        repo = repo_root()
+    problems = []
+    if repo is not None:
+        try:
+            return _check_git(Path(repo), current, timeout)
+        except Exception as exc:
+            problems.append(f"git: {_explain(exc)}")
+    try:
+        return _check_https(current, timeout, fetch)
+    except Exception as exc:  # offline, proxy, rate limit, certificates, ...
+        problems.append(_explain(exc))
+    return UpdateInfo(current, error="Could not reach GitHub. " + " / ".join(problems))
 
 
 # ------------------------------------------------------------------ local clone

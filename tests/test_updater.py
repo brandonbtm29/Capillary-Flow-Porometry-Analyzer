@@ -53,24 +53,32 @@ def fake_fetch(tags):
 
 
 def test_check_finds_newest_tag_and_notes():
-    info = updater.check("0.2.0", fetch=fake_fetch(["v0.2.0", "v0.4.0", "v0.3.0", "not-a-version"]))
+    info = updater.check("0.2.0", fetch=fake_fetch(["v0.2.0", "v0.4.0", "v0.3.0", "not-a-version"]), repo=None)
     assert info.available and info.latest == "0.4.0" and not info.error
     assert "Something new" in info.notes and "Old stuff" not in info.notes
 
 
 def test_check_up_to_date_and_offline():
-    info = updater.check("0.4.0", fetch=fake_fetch(["v0.4.0", "v0.3.0"]))
+    info = updater.check("0.4.0", fetch=fake_fetch(["v0.4.0", "v0.3.0"]), repo=None)
     assert not info.available and info.latest == "0.4.0"
 
     def offline(url, timeout):
         raise OSError("no route to host")
-    info = updater.check("0.2.0", fetch=offline)
+    info = updater.check("0.2.0", fetch=offline, repo=None)
     assert not info.available and "no route to host" in info.error
+
+
+def test_certificate_error_gets_a_plain_explanation():
+    def bad_cert(url, timeout):
+        raise OSError("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed")
+    info = updater.check("0.2.0", fetch=bad_cert, repo=None)
+    assert "Install Certificates.command" in info.error
 
 
 # ------------------------------------------------------------------ git
 needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
-GIT = ["git", "-c", "user.name=test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false"]
+GIT = ["git", "-c", "user.name=test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false",
+       "-c", "tag.gpgsign=false"]  # throwaway repos: no signing, no editor prompts
 
 
 def git(cwd, *args):
@@ -139,3 +147,28 @@ def test_update_refuses_diverged_history(clone):
     git(local, "commit", "-qm", "local commit")
     with pytest.raises(updater.UpdateError, match="aren't on GitHub"):
         updater.apply_update(local)
+
+
+@needs_git
+def test_check_uses_git_first(clone):
+    origin, local = clone
+    git(origin, "tag", "v0.2.0")
+    write_version(origin, "0.3.0")
+    (origin / "CHANGELOG.md").write_text(CHANGELOG.replace("0.4.0", "0.9.9").replace("0.3.0", "0.3.0"))
+    git(origin, "add", "-A")
+    git(origin, "commit", "-qm", "v0.3.0")
+    git(origin, "tag", "v0.3.0")
+    git(origin, "tag", "not-a-version")
+
+    def no_https(url, timeout):
+        raise AssertionError("should not need the web API")
+    info = updater.check("0.2.0", fetch=no_https, repo=local)
+    assert info.available and info.latest == "0.3.0" and not info.error
+    assert "A bug." in info.notes and "Old stuff" not in info.notes
+    assert updater.local_version(local) == "0.2.0"  # checking never changes the files
+    assert updater.apply_update(local, install=False) == "0.3.0"
+
+
+def test_check_falls_back_to_https_when_git_fails(tmp_path):
+    info = updater.check("0.2.0", fetch=fake_fetch(["v0.4.0"]), repo=tmp_path)  # not a git repo
+    assert info.latest == "0.4.0" and not info.error

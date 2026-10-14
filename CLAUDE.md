@@ -33,7 +33,7 @@ python tools/caprep_check.py         # re-check against CapRep's own reports (ne
 | `analysis.py` | CapRep math -> `Analysis` (BP, MFP, smallest pore, CFF, PSD point-by-point / binned) |
 | `qc.py` | data-quality checks -> `QCReport` (pass/info/warn/fail); uses the raw CFF (`Analysis.cff_raw`) |
 | `workspace.py` | loaded runs, stable colours, duplicate grouping (auto + manual overrides), archive/restore, summary/group tables |
-| `updater.py` | latest `vX.Y.Z` tag from the GitHub API + CHANGELOG notes; `apply_update()` = `git fetch` + `merge --ff-only origin/main`, `pip install -e .` only if `pyproject.toml` changed; refuses dirty tree / other branch |
+| `updater.py` | latest `vX.Y.Z` tag from the GitHub API + CHANGELOG notes; `check()` asks `git ls-remote --tags` first (git's own TLS; python.org's macOS Python fails HTTPS with CERTIFICATE_VERIFY_FAILED), then the GitHub API with certifi if installed; `apply_update()` = `git fetch` + `merge --ff-only origin/main`, `pip install -e .` only if `pyproject.toml` changed; refuses dirty tree / other branch |
 | `shortcuts.py` | app icon: Windows `.lnk` (Desktop + Start menu, written via IShellLink/IPropertyStore in a PowerShell Add-Type script so it carries AppUserModelID `APP_ID`, same as `gui/app.py`), macOS `~/Applications/…app` (bash launcher + `.icns` from `porometry_1024.png` via Pillow; never replaces a bundle with another ID), Linux `.desktop`. Writes `<venv>/.shortcut-made`; the launchers run it once when that marker is missing |
 | `archive.py` | move a `.CFT` into `Archive/` next to it + `archive_log.csv`; `list_archived()`, `restore_file()`; folders named `Archive` are skipped by `Workspace.add_folder` |
 | `export.py` | Excel (Summary, Groups, QC, one sheet per run) / CSV, figures |
@@ -60,7 +60,7 @@ Checked on 12 Oct 2026 against 311 CapRep reports in `C:\CFP-1500AEX\StudentData
 
 ## Versions and releases
 
-- Semantic versioning, **MAJOR.MINOR.PATCH**; below 1.0 a minor bump = new feature or visible behaviour change, a patch bump = bug fix only. Started 13 Oct 2026 (0.1.0 = first public version, 0.2.0 = rename + archive).
+- **MAJOR.MINOR.PATCH, Brandon's rule** (13 Oct 2026): middle digit = bigger feature or a noticeable change in how the app works; last digit = small changes and bug fixes; 1.0.0 when the app is ready for the rest of the lab without help, after which MAJOR = breaking changes. The same rule is written out at the top of CHANGELOG.md. Started 13 Oct 2026 (0.1.0 = first public version, 0.2.0 = rename + archive, 0.3.0 = Update button, 0.3.1 = app icon).
 - The version lives in **one place**: `__version__` in `src/porometry/__init__.py` (pyproject reads it via `[tool.setuptools.dynamic]`). It shows in the window title and status bar.
 - For every change Brandon will use: bump `__version__`, add a dated entry at the top of `CHANGELOG.md` (Added / Changed / Fixed, written for Brandon, not for programmers), commit, then tag `vX.Y.Z` and push the tag (`git push origin main --tags`).
 - **The app's Update button only sees pushed `vX.Y.Z` tags** (GitHub tags API), and updates by fast-forwarding `main`. So: tag only commits on `main`, never move or delete a pushed tag, never force-push `main`. `MainWindow(check_updates=True)` only from `gui/app.py`; tests construct it without, so they never hit the network.
@@ -72,7 +72,7 @@ Checked on 12 Oct 2026 against 311 CapRep reports in `C:\CFP-1500AEX\StudentData
 - Runs that fail QC still plot, dashed and labelled `[QC fail]`.
 - **Archive** (13 Oct 2026) moves files into `Archive/` next to them (never deletes) and logs date, QC and reason; **Remove from list** only affects the current session.
 - **Update button** (13 Oct 2026, v0.3.0): checks GitHub on start-up (QSettings `check_updates`, on by default), shows a link in the status bar, never updates without a click; update = git fast-forward + restart with the same runs.
-- **App icon** (13 Oct 2026, v0.3.1, Brandon chose the number): made automatically on first launch on both OSes and from Settings > Create app icon; `make_shortcut.ps1` is now a thin wrapper around `python -m porometry.shortcuts`.
+- **App icon** (13 Oct 2026, v0.3.1): made automatically on first launch on both OSes and from Settings > Create app icon; `make_shortcut.ps1` is now a thin wrapper around `python -m porometry.shortcuts`.
 - Name: **Capillary Flow Porometry Analyzer** (13 Oct 2026), to avoid confusion with other porometry techniques.
 - Analysis settings are stored in QSettings key `analysis_v2` (the old `analysis` key held the pre-check smallest-pore level and is ignored).
 - Public repo, MIT license; data in SyncThing (12 Oct 2026).

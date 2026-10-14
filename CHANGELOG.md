@@ -1,9 +1,22 @@
 # Changelog
 
-Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**.
-While the app is below 1.0, a **minor** bump (0.2 → 0.3) adds features or changes behaviour you'd notice,
-and a **patch** bump (0.2.0 → 0.2.1) is a bug fix only. Each release is tagged `vX.Y.Z` on GitHub.
-The version shows in the window title and the bottom-right corner of the app.
+Versions are **MAJOR.MINOR.PATCH**, in the style of [semantic versioning](https://semver.org):
+
+- **Middle digit** (0.3 → 0.4): a bigger feature or a change in how the app works that you'd notice.
+- **Last digit** (0.3.1 → 0.3.2): small changes and bug fixes.
+- **First digit**: goes to 1.0.0 once the app is complete and trusted enough for the rest of the lab to use
+  without help. After that, it goes up only for changes that break old habits or files.
+
+Each release is tagged `vX.Y.Z` on GitHub. The version shows in the window title and the bottom-right corner
+of the app.
+
+## 0.3.2 - 2026-10-13
+
+### Fixed
+- **Update check on the Mac.** Checking for updates failed with `CERTIFICATE_VERIFY_FAILED`, because Python
+  from python.org on macOS doesn't trust any certificates until its *Install Certificates* step is run. The
+  app now asks git for the latest version, the same way the update itself downloads it, and uses the web API
+  only as a fallback. If both fail, the window says why in plain words.
 
 ## 0.3.1 - 2026-10-13
 

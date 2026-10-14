@@ -98,8 +98,8 @@ class UpdateDialog(QDialog):
 
     def _show(self, info: UpdateInfo):
         if info.error:
-            self.headline.setText(f"<b>You have version {info.current}.</b> {html.escape(info.error)}")
-            self.notes.setPlainText("Check your internet connection and try again.")
+            self.headline.setText(f"<b>You have version {info.current}.</b> Couldn't check for updates.")
+            self.notes.setPlainText(f"{info.error}\n\nCheck your internet connection and try again.")
             self.update_btn.setVisible(False)
             return
         if not info.available:
