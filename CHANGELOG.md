@@ -10,6 +10,24 @@ Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**
 Each release is tagged `vX.Y.Z` on GitHub. The version shows in the window title and the bottom-right corner
 of the app.
 
+## 0.5.0 - 2026-10-14
+
+### Added
+- **Named groups, like playlists.** Make a group from selected runs (*New group from selection…*), add runs
+  with *Add to group* or by dragging them onto a group, and click a group to show only its runs in the
+  plots, tables, statistics, Compare tab and exports. **A run can be in several groups.** Each group
+  remembers its own Average by, Colour by, palette and Show setting. Groups are saved in `run_tags.csv` next to
+  the data (column *Groups*), so they sync between computers. Rename or delete from the right-click menu.
+- **Average by → Run (no averaging)**, to compare replicates one by one, also on the Compare tab.
+- **Recent folders** (*File > Recent folders*, or the arrow on *Open folder*), kept per computer.
+- *Help > How grouping works* (F1), with examples.
+
+### Changed
+- The averages table is now called **Averages (mean ± SD)** and the Runs table's averaging column is
+  *Average group*, so neither is confused with your named groups. The Compare tab title names the field
+  ("Mean flow pore by condition").
+- Run names on the Compare axis tilt when they would overlap.
+
 ## 0.4.0 - 2026-10-14
 
 ### Added

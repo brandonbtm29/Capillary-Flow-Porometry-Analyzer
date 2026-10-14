@@ -54,7 +54,7 @@ def save(path: str | Path, ws: Workspace, plot_options: PlotOptions, *, folders=
                   "style": e.style} for e in ws.entries],
         "folders": [{"path": str(Path(f).resolve()), "relpath": _rel(Path(f).resolve(), base)} for f in folders],
         "view": {"fields": ws.fields, "average_by": ws.average_by, "color_by": ws.color_by, "palette": ws.palette,
-                 "value_colors": ws.value_colors},
+                 "value_colors": ws.value_colors, "active_group": ws.active_group, "group_views": ws.group_views},
         "plot_options": asdict(plot_options),
         "analysis": asdict(ws.settings),
         "qc": asdict(ws.qc_settings),
@@ -130,6 +130,7 @@ def apply(loaded: Loaded, ws: Workspace) -> None:
     ws.color_by = v.get("color_by", ws.color_by)
     ws.palette = v.get("palette", ws.palette)
     ws.value_colors = {k: dict(d) for k, d in (v.get("value_colors") or {}).items()}
+    ws.group_views = {k: dict(d) for k, d in (v.get("group_views") or {}).items()}
     for p, _vis, style in loaded.runs:
         key = str(p.resolve())
         if style:
@@ -140,4 +141,6 @@ def apply(loaded: Loaded, ws: Workspace) -> None:
     vis = {str(p.resolve()): v for p, v, _s in loaded.runs}
     for e in ws.entries:
         e.visible = vis.get(str(e.path.resolve()), True)
-    ws.restyle()
+    ag = v.get("active_group")
+    ws.active_group = ag if ag in ws.group_names() else None
+    ws.regroup()

@@ -15,8 +15,9 @@ from PyQt6.QtCore import QByteArray, QProcess, QSettings, QSortFilterProxyModel,
 from PyQt6.QtGui import QAction, QActionGroup, QDesktopServices, QFont, QKeySequence
 from PyQt6.QtWidgets import (
     QAbstractItemView, QDialog, QDockWidget, QFileDialog, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
-    QMainWindow, QMenu, QMessageBox, QPushButton, QSplitter, QStyle, QStyledItemDelegate, QTableView, QTabWidget,
-    QTextBrowser, QToolBar, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QListWidget, QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPushButton, QSplitter, QStyle,
+    QStyledItemDelegate, QTableView, QTabWidget, QTextBrowser, QToolBar, QToolButton, QTreeWidget, QTreeWidgetItem,
+    QVBoxLayout, QWidget,
 )
 
 from .. import __version__, session, shortcuts, updater
@@ -38,9 +39,10 @@ from .update_dialog import UpdateDialog, Worker
 
 NAME_ROLE = Qt.ItemDataRole.UserRole + 1
 PLOTS = [("flow", "Flow vs pressure"), ("cff", "Cumulative filter flow"), ("psd", "Pore size distribution"),
-         ("compare", "Compare groups")]
+         ("compare", "Compare")]
 REPO_URL = "https://github.com/" + updater.REPO
 MAX_RECENT = 8
+MAX_RECENT_FOLDERS = 10
 SETTINGS_ENV = "POROMETRY_SETTINGS_FILE"  # tests point this at a temporary file
 
 
@@ -91,6 +93,84 @@ class TagDelegate(QStyledItemDelegate):
         if item is None or item.data(0, NAME_ROLE) is None or not self.window._is_tag_column(index.column()):
             return None
         return super().createEditor(parent, option, index)
+
+
+GROUP_ROLE = Qt.ItemDataRole.UserRole + 2
+ALL_RUNS = "All runs"
+GROUPING_HELP = """\
+## How grouping works
+
+There are two separate ideas: **groups** (which runs you're looking at) and **Average by** (which of those
+runs are averaged together).
+
+### Groups: pick the runs to compare
+
+Groups work like playlists. *All runs* is everything loaded; your own groups sit under it.
+
+- **Make one:** select runs in the list (Ctrl- or Shift-click), then **New group from selection…**.
+- **Add more:** select runs, then **Add to group** (or right-click > *Add to group*), or drag them onto a
+  group in the list.
+- **One run can be in many groups.** The same run can be in "Speed series" and in "S1 replicates".
+- **Click a group** and the plots, tables, statistics, Compare tab and exports show only its runs.
+- Each group remembers how it's plotted: its Average by, Colour by, palette and Show setting.
+- Membership is saved in `run_tags.csv` next to the data (column *Groups*), so it syncs between computers.
+
+### Average by: which runs are replicates of each other
+
+Inside whatever you're looking at, **Average by** (Plot options) decides which runs count as replicates:
+
+- **Condition** (the default): runs with the same condition are averaged, e.g. three 0.25 mm/min runs.
+- **Sample**, **Folder** or a field you added: average along that instead.
+- **Run (no averaging)**: every run stands alone. Use this to compare replicates with each other.
+
+### Examples
+
+| You want to | Group | Average by | Colour by | Show |
+|---|---|---|---|---|
+| Compare speeds, replicates averaged | "Speed series" | Condition | Condition | Group means ± SD |
+| See how the replicates of one sample agree | "S1 replicates" | Run | Replicate | Individual runs |
+| Compare samples at one speed | "0.25 mm/min samples" | Sample | Sample | Runs + group means |
+
+### Tags
+
+Condition, Sample, Replicate and Folder are read from the file name. Double-click a cell to change one run,
+or select several and use *Runs > Set field*. Add your own fields (e.g. Membrane, Batch) with
+*Runs > Add field…*.
+"""
+
+
+class GroupList(QListWidget):
+    """The groups panel. Runs dragged here from the run list are added to the group they're dropped on."""
+
+    def __init__(self, window: "MainWindow"):
+        super().__init__()
+        self.window = window
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+
+    def dragEnterEvent(self, ev):
+        if ev.source() is self.window.tree:
+            ev.acceptProposedAction()
+        else:
+            super().dragEnterEvent(ev)
+
+    def dragMoveEvent(self, ev):
+        if ev.source() is self.window.tree:
+            it = self.itemAt(ev.position().toPoint())
+            if it is not None and it.data(GROUP_ROLE):
+                ev.acceptProposedAction()
+                return
+            ev.ignore()
+        else:
+            super().dragMoveEvent(ev)
+
+    def dropEvent(self, ev):
+        it = self.itemAt(ev.position().toPoint())
+        if ev.source() is self.window.tree and it is not None and it.data(GROUP_ROLE):
+            self.window.add_selected_to_group(it.data(GROUP_ROLE))
+            ev.acceptProposedAction()
+        else:
+            ev.ignore()
 
 
 class MainWindow(QMainWindow):
@@ -167,6 +247,14 @@ class MainWindow(QMainWindow):
           "Move the selected runs' .CFT files into an Archive folder next to them, with a reason", SP.SP_TrashIcon)
         A("archived", "Archived runs…", self.show_archived, None, "List archived runs in the opened folders and restore them")
         A("clear", "Clear list", self.clear_all)
+        A("new_group", "New group from selection…", self.new_group_from_selection, "Ctrl+N",
+          "Make the selected runs a named group (a run can be in several groups)")
+        A("remove_from_group", "Remove from this group", self.remove_selected_from_group, None,
+          "Take the selected runs out of the group being shown (the files stay)")
+        A("rename_group", "Rename group…", lambda: self.rename_group(None))
+        A("delete_group", "Delete group…", lambda: self.delete_group(None))
+        A("all_runs", "Show all runs (no group)", lambda: self.activate_group(None))
+        A("grouping_help", "How grouping works", self.show_grouping_help, "F1")
         A("settings", "Settings…", self.open_settings, "Ctrl+,", "Analysis options and data quality checks",
           SP.SP_FileDialogDetailedView).setMenuRole(QAction.MenuRole.PreferencesRole)
         A("app_icon", "Create app icon", self.make_app_icon, None, f"Put the app icon {shortcuts.where()}")
@@ -182,8 +270,9 @@ class MainWindow(QMainWindow):
         # ---- menu bar
         mb = self.menuBar()
         m = mb.addMenu("&File")
-        for k in ("open_folder", "add_files"):
-            m.addAction(self.actions[k])
+        m.addAction(self.actions["open_folder"])
+        self.recent_folders_menu = m.addMenu("Recent folders")
+        m.addAction(self.actions["add_files"])
         m.addSeparator()
         m.addAction(self.actions["open_session"])
         self.recent_menu = m.addMenu("Recent sessions")
@@ -196,6 +285,11 @@ class MainWindow(QMainWindow):
         m.addAction(self.actions["quit"])
 
         m = mb.addMenu("&Runs")
+        m.addAction(self.actions["new_group"])
+        self.add_to_group_menu = m.addMenu("Add selected to group")
+        for k in ("remove_from_group", "rename_group", "delete_group", "all_runs"):
+            m.addAction(self.actions[k])
+        m.addSeparator()
         self.field_menu = m.addMenu("Set field for selected")
         m.addAction(self.actions["add_field"])
         m.addAction(self.actions["reset_tags"])
@@ -235,7 +329,7 @@ class MainWindow(QMainWindow):
         m.addAction(self.actions["app_icon"])
 
         m = mb.addMenu("&Help")
-        for k in ("updates", "whats_new", "guide", "report"):
+        for k in ("grouping_help", "updates", "whats_new", "guide", "report"):
             m.addAction(self.actions[k])
         m.addSeparator()
         m.addAction(self.actions["about"])
@@ -245,7 +339,14 @@ class MainWindow(QMainWindow):
         tb.setObjectName("main_toolbar")
         tb.setMovable(False)
         tb.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        for k in ("open_folder", "add_files", "save_session", None, "export_summary", "export_figure", "copy_figure",
+        open_btn = QToolButton()
+        open_btn.setDefaultAction(self.actions["open_folder"])
+        open_btn.setMenu(self.recent_folders_menu)
+        open_btn.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        open_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        open_btn.setToolTip("Open a folder (click the arrow for recent folders)")
+        tb.addWidget(open_btn)
+        for k in ("add_files", "save_session", None, "export_summary", "export_figure", "copy_figure",
                   None, "archive", None, "settings"):
             if k is None:
                 tb.addSeparator()
@@ -254,9 +355,44 @@ class MainWindow(QMainWindow):
         self.addToolBar(tb)
 
         # ---- left: runs + details
-        left = QWidget()
-        ll = QVBoxLayout(left)
-        ll.setContentsMargins(6, 6, 0, 6)
+        # groups (top), runs (middle), details (bottom), in a splitter
+        groups_box = QWidget()
+        gl = QVBoxLayout(groups_box)
+        gl.setContentsMargins(6, 6, 0, 0)
+        head = QHBoxLayout()
+        head.addWidget(QLabel("<b>Groups</b> <span style='color:#52514e'>(click one to show only its runs)"
+                              "</span>"), 1)
+        help_btn = QToolButton()
+        help_btn.setText("?")
+        help_btn.setToolTip("How grouping works")
+        help_btn.clicked.connect(self.show_grouping_help)
+        head.addWidget(help_btn)
+        gl.addLayout(head)
+        self.group_list = GroupList(self)
+        self.group_list.setToolTip("Click a group to show only its runs. Drag runs here to add them to a group. "
+                                   "Right-click to rename or delete.")
+        self.group_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.group_list.customContextMenuRequested.connect(self._group_list_menu)
+        self.group_list.currentItemChanged.connect(self._group_clicked)
+        gl.addWidget(self.group_list)
+        grow = QHBoxLayout()
+        new_btn = QPushButton("New group from selection…")
+        new_btn.setToolTip("Select runs below (Ctrl/Shift-click), then make them a group")
+        new_btn.clicked.connect(self.actions["new_group"].trigger)
+        grow.addWidget(new_btn)
+        self.add_to_btn = QPushButton("Add to group")
+        self.add_to_menu = QMenu(self)
+        self.add_to_btn.setMenu(self.add_to_menu)
+        grow.addWidget(self.add_to_btn)
+        self.remove_from_btn = QPushButton("Remove from group")
+        self.remove_from_btn.setToolTip("Take the selected runs out of the group being shown (the files stay)")
+        self.remove_from_btn.clicked.connect(self.actions["remove_from_group"].trigger)
+        grow.addWidget(self.remove_from_btn)
+        gl.addLayout(grow)
+
+        runs_box = QWidget()
+        ll = QVBoxLayout(runs_box)
+        ll.setContentsMargins(6, 4, 0, 0)
         self.list_head = QLabel()
         self.list_head.setWordWrap(True)
         ll.addWidget(self.list_head)
@@ -267,9 +403,11 @@ class MainWindow(QMainWindow):
         self.tree.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked
                                   | QAbstractItemView.EditTrigger.EditKeyPressed)
         self.tree.setItemDelegate(TagDelegate(self))
+        self.tree.setDragEnabled(True)
+        self.tree.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
         self.tree.itemChanged.connect(self._tree_changed)
         self.tree.currentItemChanged.connect(self._tree_selected)
-        ll.addWidget(self.tree, 3)
+        ll.addWidget(self.tree, 1)
         row = QHBoxLayout()
         for text, key in (("Show all", "show_all"), ("Hide all", "hide_all"), ("Hide QC fails", "hide_fails")):
             b = QPushButton(text)
@@ -280,17 +418,31 @@ class MainWindow(QMainWindow):
         self.set_field_btn = QPushButton()
         self.set_field_btn.setToolTip("Give the selected runs the same value (Ctrl/Shift-click to select several). "
                                       "Double-click a cell to edit one run. Right-click for more.")
-        self.set_field_btn.clicked.connect(lambda: self.set_field_dialog(self.ws.average_by))
+        self.set_field_btn.clicked.connect(lambda: self.set_field_dialog(
+            self.ws.average_by if self.ws.average_by in self.ws.fields else None))
         row2.addWidget(self.set_field_btn)
         style_btn = QPushButton("Style…")
         style_btn.setToolTip("Colour, marker, line and legend label of the selected runs")
         style_btn.clicked.connect(self.style_selected)
         row2.addWidget(style_btn)
         ll.addLayout(row2)
-        ll.addWidget(QLabel("<b>Run details</b>"))
+
+        details_box = QWidget()
+        dl = QVBoxLayout(details_box)
+        dl.setContentsMargins(6, 4, 0, 6)
+        dl.addWidget(QLabel("<b>Run details</b>"))
         self.details = QTextBrowser()
         self.details.setOpenExternalLinks(False)
-        ll.addWidget(self.details, 2)
+        dl.addWidget(self.details)
+
+        left = QSplitter(Qt.Orientation.Vertical)
+        left.addWidget(groups_box)
+        left.addWidget(runs_box)
+        left.addWidget(details_box)
+        left.setStretchFactor(0, 1)
+        left.setStretchFactor(1, 4)
+        left.setStretchFactor(2, 2)
+        left.setSizes([170, 470, 220])
 
         # ---- middle: plots over tables
         self.plot_tabs = QTabWidget()
@@ -309,7 +461,7 @@ class MainWindow(QMainWindow):
         self.group_view = self._make_table(self.group_model)
         self.stats_view = self._make_table(self.stats_model, sortable=False)
         self.table_tabs.addTab(self.run_view, "Runs")
-        self.table_tabs.addTab(self.group_view, "Groups (mean ± SD)")
+        self.table_tabs.addTab(self.group_view, "Averages (mean ± SD)")
         self.table_tabs.addTab(self.stats_view, "Statistics")
 
         right = QSplitter(Qt.Orientation.Vertical)
@@ -357,6 +509,7 @@ class MainWindow(QMainWindow):
         if isinstance(state, QByteArray):
             self.restoreState(state)
         self._rebuild_recent()
+        self._rebuild_recent_folders()
         self._sync_menus()
 
     def _make_table(self, model, sortable: bool = True) -> QTableView:
@@ -395,12 +548,13 @@ class MainWindow(QMainWindow):
             self.ws.palette = v.get("palette", self.ws.palette)
             self.ws.value_colors = dict(v.get("value_colors") or {})
             self.ws.run_styles = dict(v.get("run_styles") or {})
+            self.ws.group_views = {k: dict(d) for k, d in (v.get("group_views") or {}).items()}
             # pre-0.4 'mark as duplicates' groups: applied as Condition tags when those runs load
             self.ws.legacy_groups = dict(json.loads(self.qs.value("group_overrides", "{}") or "{}"))
             self.export_prefs = dict(json.loads(self.qs.value("export_v1", "{}") or "{}"))
         except (TypeError, ValueError, json.JSONDecodeError):
             pass
-        if self.ws.average_by not in self.ws.fields:
+        if self.ws.average_by not in (*self.ws.fields, RUN):
             self.ws.average_by = "Condition"
         if self.ws.color_by != RUN and self.ws.color_by not in self.ws.fields:
             self.ws.color_by = RUN
@@ -412,7 +566,8 @@ class MainWindow(QMainWindow):
         self.qs.setValue("group_include_warn", "true" if self.group_include_warn else "false")
         self.qs.setValue("view_v1", json.dumps({
             "fields": self.ws.fields, "average_by": self.ws.average_by, "color_by": self.ws.color_by,
-            "palette": self.ws.palette, "value_colors": self.ws.value_colors, "run_styles": self.ws.run_styles}))
+            "palette": self.ws.palette, "value_colors": self.ws.value_colors, "run_styles": self.ws.run_styles,
+            "group_views": self.ws.group_views}))
         self.qs.setValue("group_overrides", json.dumps(self.ws.legacy_groups))
         self.qs.setValue("export_v1", json.dumps(self.export_prefs))
         self.qs.setValue("geometry", self.saveGeometry())
@@ -433,9 +588,57 @@ class MainWindow(QMainWindow):
     def open_folder(self):
         d = QFileDialog.getExistingDirectory(self, "Open folder of .CFT files", self._last_dir())
         if d:
-            self.qs.setValue("last_dir", d)
-            self._folders.add(Path(d))
-            self._load(lambda: self.ws.add_folder(d))
+            self.open_folder_path(d)
+
+    def open_folder_path(self, d: str | Path):
+        d = Path(d)
+        if not d.is_dir():
+            QMessageBox.warning(self, "Open folder", f"{d} is not there any more (moved or renamed?).")
+            self._forget_recent_folder(d)
+            return
+        self.qs.setValue("last_dir", str(d))
+        self._folders.add(d)
+        self._remember_folder(d)
+        self._load(lambda: self.ws.add_folder(d))
+
+    # ---- recent folders: kept per computer (paths differ between the Mac and the PC)
+    def _recent_folders(self) -> list[str]:
+        try:
+            return [p for p in json.loads(self.qs.value("recent_folders", "[]") or "[]") if isinstance(p, str)]
+        except (TypeError, json.JSONDecodeError):
+            return []
+
+    def _remember_folder(self, d: Path):
+        d = str(Path(d).resolve())
+        recent = [p for p in self._recent_folders() if p != d]
+        self.qs.setValue("recent_folders", json.dumps([d, *recent][:MAX_RECENT_FOLDERS]))
+        self._rebuild_recent_folders()
+
+    def _forget_recent_folder(self, d: Path):
+        d = str(Path(d).resolve())
+        self.qs.setValue("recent_folders", json.dumps([p for p in self._recent_folders() if p != d]))
+        self._rebuild_recent_folders()
+
+    def _rebuild_recent_folders(self):
+        m = self.recent_folders_menu
+        m.clear()
+        recent = self._recent_folders()
+        for p in recent:
+            path = Path(p)
+            label = f"{path.name}    ({path.parent.name})" if path.parent.name else path.name
+            a = m.addAction(label, lambda p=p: self.open_folder_path(p))
+            a.setToolTip(p)
+            a.setStatusTip(p)
+            a.setEnabled(path.is_dir())
+        if recent:
+            m.addSeparator()
+            m.addAction("Clear recent folders", self._clear_recent_folders)
+        else:
+            m.addAction("No recent folders yet").setEnabled(False)
+
+    def _clear_recent_folders(self):
+        self.qs.setValue("recent_folders", "[]")
+        self._rebuild_recent_folders()
 
     def add_files(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Add .CFT files", self._last_dir(),
@@ -455,6 +658,7 @@ class MainWindow(QMainWindow):
             for p in map(Path, paths):
                 if p.is_dir():
                     self._folders.add(p)
+                    self._remember_folder(p)
                     added += self.ws.add_folder(p)
                 elif p.suffix.lower() == ".cft":
                     added += self.ws.add_files([p])
@@ -714,6 +918,159 @@ class MainWindow(QMainWindow):
             self.ws.set_tag([e], fld, item.text(col))
             QTimer.singleShot(0, self._after_tags)  # don't rebuild the tree inside its own signal
 
+    # ================================================================== named groups
+    def _rebuild_group_list(self):
+        self._building_groups = True
+        lst = self.group_list
+        lst.clear()
+        n_all = len(self.ws.entries)
+        it = QListWidgetItem(f"{ALL_RUNS}  ({n_all})")
+        it.setData(GROUP_ROLE, None)
+        f = QFont()
+        f.setBold(True)
+        it.setFont(f)
+        lst.addItem(it)
+        current = it
+        counts: dict[str, int] = {}
+        for e in self.ws.entries:
+            for g in e.groups:
+                counts[g] = counts.get(g, 0) + 1
+        for g in self.ws.group_names():
+            gi = QListWidgetItem(f"   {g}  ({counts.get(g, 0)})")
+            gi.setData(GROUP_ROLE, g)
+            gi.setToolTip(f"{g}: {counts.get(g, 0)} run(s). Click to show only these; drop runs here to add them.")
+            lst.addItem(gi)
+            if g == self.ws.active_group:
+                current = gi
+        lst.setCurrentItem(current)
+        lst.setMaximumHeight(16777215)
+        self.remove_from_btn.setEnabled(self.ws.active_group is not None)
+        self.actions["remove_from_group"].setEnabled(self.ws.active_group is not None)
+        for k in ("rename_group", "delete_group"):
+            self.actions[k].setEnabled(bool(self.ws.group_names()))
+        self._fill_add_menu(self.add_to_menu, None)
+        self._fill_add_menu(self.add_to_group_menu, None)
+        self._building_groups = False
+
+    def _fill_add_menu(self, menu: QMenu, entries: list[Entry] | None):
+        menu.clear()
+        for g in self.ws.group_names():
+            menu.addAction(g, lambda g=g: self.add_selected_to_group(g, entries))
+        if self.ws.group_names():
+            menu.addSeparator()
+        menu.addAction("New group…", lambda: self.new_group_from_selection(entries))
+
+    def _group_clicked(self, cur, _prev):
+        if getattr(self, "_building_groups", False) or cur is None:
+            return
+        name = cur.data(GROUP_ROLE)
+        if name != self.ws.active_group:
+            self.activate_group(name)
+
+    def activate_group(self, name: str | None):
+        v = self.ws.activate_group(name, {"display": self.plot_opts.display})
+        if v.get("display") in ("runs", "means", "both"):
+            self.plot_opts.display = v["display"]
+        if self.highlight and not any(e.name == self.highlight for e in self.ws.scope()):
+            self.highlight = None
+        self.options.sync()
+        self._save_prefs()
+        self._refresh_all()
+        n = len(self.ws.scope())
+        self.statusBar().showMessage(f"Showing {name}: {n} run(s)" if name else f"Showing all {n} runs", 6000)
+
+    def new_group_from_selection(self, entries: list[Entry] | None = None):
+        sel = entries if entries is not None else self._selected_entries()
+        if not sel:
+            QMessageBox.information(self, "New group", "Select the runs for the group first (Ctrl- or Shift-click in "
+                                    "the run list), then click New group from selection.")
+            return
+        name, ok = QInputDialog.getText(self, "New group", f"Name for a group of {len(sel)} run(s)\n"
+                                        "(e.g. Speed series, S1 replicates, Mesh vs no mesh):")
+        if not ok or not name.strip():
+            return
+        self.ws.add_to_group(sel, name.strip())
+        self._after_tags()
+        self.activate_group(name.strip().replace(";", ","))
+
+    def add_selected_to_group(self, name: str, entries: list[Entry] | None = None):
+        sel = entries if entries is not None else self._selected_entries()
+        if not sel:
+            QMessageBox.information(self, "Add to group", "Select the runs first (Ctrl- or Shift-click).")
+            return
+        self.ws.add_to_group(sel, name)
+        self._after_tags()
+        self.statusBar().showMessage(f"Added {len(sel)} run(s) to {name}", 6000)
+
+    def remove_selected_from_group(self, entries: list[Entry] | None = None):
+        g = self.ws.active_group
+        sel = entries if entries is not None else self._selected_entries()
+        if g is None or not sel:
+            return
+        self.ws.remove_from_group(sel, g)
+        self._after_tags()
+        self.statusBar().showMessage(f"Took {len(sel)} run(s) out of {g}", 6000)
+
+    def _pick_group(self, title: str) -> str | None:
+        names = self.ws.group_names()
+        if not names:
+            return None
+        start = names.index(self.ws.active_group) if self.ws.active_group in names else 0
+        name, ok = QInputDialog.getItem(self, title, "Group:", names, start, False)
+        return name if ok else None
+
+    def rename_group(self, name: str | None):
+        name = name or self._pick_group("Rename group")
+        if not name:
+            return
+        new, ok = QInputDialog.getText(self, "Rename group", f"New name for '{name}':", text=name)
+        if ok and new.strip() and new.strip() != name:
+            if name in self.ws.group_views:
+                self.ws.group_views[new.strip()] = self.ws.group_views.pop(name)
+            self.ws.rename_group(name, new.strip())
+            self._after_tags()
+
+    def delete_group(self, name: str | None):
+        name = name or self._pick_group("Delete group")
+        if not name:
+            return
+        n = sum(name in e.groups for e in self.ws.entries)
+        if QMessageBox.question(self, "Delete group", f"Delete the group '{name}'?\n\nIts {n} run(s) stay loaded and "
+                                "their files are not touched; they just stop being in this group.") \
+                != QMessageBox.StandardButton.Yes:
+            return
+        self.ws.delete_group(name)
+        self.ws.group_views.pop(name, None)
+        self._after_tags()
+
+    def _group_list_menu(self, pos):
+        it = self.group_list.itemAt(pos)
+        name = it.data(GROUP_ROLE) if it is not None else None
+        m = QMenu(self)
+        if name:
+            m.addAction(f"Show '{name}'", lambda: self.activate_group(name))
+            sel = self._selected_entries()
+            if sel:
+                m.addAction(f"Add {len(sel)} selected run(s) here", lambda: self.add_selected_to_group(name, sel))
+            m.addSeparator()
+            m.addAction("Rename…", lambda: self.rename_group(name))
+            m.addAction("Delete group…", lambda: self.delete_group(name))
+        else:
+            m.addAction(self.actions["new_group"])
+        m.addSeparator()
+        m.addAction(self.actions["grouping_help"])
+        m.exec(self.group_list.viewport().mapToGlobal(pos))
+
+    def show_grouping_help(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("How grouping works")
+        dlg.resize(720, 640)
+        lay = QVBoxLayout(dlg)
+        tb = QTextBrowser()
+        tb.setMarkdown(GROUPING_HELP)
+        lay.addWidget(tb)
+        dlg.exec()
+
     # ================================================================== styles
     def style_selected(self):
         sel = self._selected_or_current()
@@ -763,7 +1120,8 @@ class MainWindow(QMainWindow):
             self.actions[k].blockSignals(True)
             self.actions[k].setChecked(v)
             self.actions[k].blockSignals(False)
-        self.set_field_btn.setText(f"Set {self.ws.average_by}…")
+        self.set_field_btn.setText(f"Set {self.ws.average_by}…" if self.ws.average_by in self.ws.fields
+                                   else "Set field…")
         self.field_menu.clear()
         for f in self.ws.fields:
             self.field_menu.addAction(f"{f}…", lambda f=f: self.set_field_dialog(f))
@@ -836,6 +1194,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_all(self):
         self._sync_menus()
+        self._rebuild_group_list()
         self._rebuild_tree()
         self._refresh_soft()
 
@@ -861,15 +1220,19 @@ class MainWindow(QMainWindow):
         hdr = self.tree.header()
         hdr.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         hdr.setStretchLastSection(False)
-        self.list_head.setText(f"<b>Runs</b> grouped by <b>{html.escape(self.ws.average_by)}</b>. Tick to plot, "
-                               "click to highlight, double-click a cell to edit.")
+        where = (f"in <b>{html.escape(self.ws.active_group)}</b>" if self.ws.active_group else "(all loaded)")
+        by = ("each on its own (Average by: Run)" if self.ws.average_by == RUN
+              else f"averaged by <b>{html.escape(self.ws.average_by)}</b>")
+        self.list_head.setText(f"<b>Runs</b> {where}, {by}. Tick to plot, click to highlight, double-click a cell "
+                               "to edit, drag onto a group to add.")
+        flat = self.ws.average_by == RUN
         groups: dict[str, QTreeWidgetItem] = {}
         bold = QFont()
         bold.setBold(True)
         italic = QFont()
         italic.setItalic(True)
-        for e in sorted(self.ws.entries, key=lambda e: (sort_key(e.group), e.load_index)):
-            g = groups.get(e.group)
+        for e in sorted(self.ws.scope(), key=lambda e: (sort_key(e.group), e.load_index)):
+            g = self.tree.invisibleRootItem() if flat else groups.get(e.group)
             if g is None:
                 g = QTreeWidgetItem(self.tree, [e.group])
                 g.setFont(0, bold)
@@ -882,7 +1245,7 @@ class MainWindow(QMainWindow):
             it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEditable)
             it.setCheckState(0, Qt.CheckState.Checked if e.visible else Qt.CheckState.Unchecked)
             it.setData(0, NAME_ROLE, e.name)
-            it.setToolTip(0, str(e.path))
+            it.setToolTip(0, str(e.path) + (f"\nGroups: {', '.join(e.groups)}" if e.groups else ""))
             for i, f in enumerate(fields, start=1):
                 if self.ws.is_edited(e, f):
                     it.setFont(i, italic)
@@ -905,9 +1268,10 @@ class MainWindow(QMainWindow):
         gcol = self.ws.group_colors()
         for i in range(self.tree.topLevelItemCount()):
             g = self.tree.topLevelItem(i)
-            g.setIcon(0, color_icon(gcol.get(g.text(0), "#888888")))
-            for j in range(g.childCount()):
-                it = g.child(j)
+            items = [g] if g.data(0, NAME_ROLE) else [g.child(j) for j in range(g.childCount())]
+            if not g.data(0, NAME_ROLE):
+                g.setIcon(0, color_icon(gcol.get(g.text(0), "#888888")))
+            for it in items:
                 e = self._entry(it.data(0, NAME_ROLE))
                 if e:
                     it.setIcon(0, color_icon(e.color))
@@ -1029,6 +1393,11 @@ class MainWindow(QMainWindow):
             return
         n = len(sel)
         m = QMenu(self)
+        add = m.addMenu(f"Add {n} run(s) to group")
+        self._fill_add_menu(add, sel)
+        if self.ws.active_group:
+            m.addAction(f"Remove from '{self.ws.active_group}'", lambda: self.remove_selected_from_group(sel))
+        m.addSeparator()
         sub = m.addMenu(f"Set field for {n} run(s)")
         for f in self.ws.fields:
             sub.addAction(f"{f}…", lambda f=f: self.set_field_dialog(f, sel))
@@ -1058,7 +1427,7 @@ class MainWindow(QMainWindow):
         if not self.ws.entries:
             QMessageBox.information(self, "Nothing to export", "Load some runs first.")
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Export summary", str(Path(self._last_dir()) / "porometry_summary.xlsx"),
+        path, _ = QFileDialog.getSaveFileName(self, "Export summary", str(Path(self._last_dir()) / f"porometry_summary{self._file_suffix()}.xlsx"),
                                               "Excel workbook (*.xlsx);;CSV, summary only (*.csv)")
         if not path:
             return
@@ -1068,6 +1437,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Could not save", f"{path} is open in another program. Close it and try again.")
             return
         self.statusBar().showMessage(f"Saved {out}", 8000)
+
+    def _file_suffix(self) -> str:
+        g = self.ws.active_group
+        return "_" + "".join(c if c.isalnum() or c in "-_." else "_" for c in g).strip("_") if g else ""
 
     def current_kind(self) -> str:
         return PLOTS[self.plot_tabs.currentIndex()][0]

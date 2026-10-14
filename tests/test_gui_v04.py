@@ -74,7 +74,7 @@ def test_colour_by_display_and_menus_stay_in_sync(win):
     win.plot_tabs.setCurrentIndex(3)
     QtWidgets.QApplication.processEvents()
     title = win.panels["compare"].figure.axes[0].get_title(loc="left")
-    assert "by group" in title
+    assert "by condition" in title
     assert win.stats_model.frame.iloc[0]["Test"] == "One-way ANOVA"
     # axis limits typed into the panel apply to the current plot
     win.plot_tabs.setCurrentIndex(1)
@@ -150,3 +150,75 @@ def test_export_dialog_and_clipboard(win, tmp_path):
     assert d.h_label.text() == "Height per panel"
     win.copy_figure()
     assert not QtWidgets.QApplication.clipboard().image().isNull()
+
+
+# ---------------------------------------------------------------- v0.5: named groups, recent folders
+def group_items(w) -> list[str]:
+    return [w.group_list.item(i).text().strip() for i in range(w.group_list.count())]
+
+
+def select_runs(w, pred):
+    w.tree.clearSelection()
+    for i in range(w.tree.topLevelItemCount()):
+        top = w.tree.topLevelItem(i)
+        for it in [top] if top.data(0, w_role()) else [top.child(j) for j in range(top.childCount())]:
+            e = w._entry(it.data(0, w_role()))
+            if e is not None and pred(e):
+                it.setSelected(True)
+
+
+def w_role():
+    from porometry.gui.main_window import NAME_ROLE
+    return NAME_ROLE
+
+
+def test_groups_list_new_add_remove_rename_delete(win, monkeypatch):
+    from porometry.gui import main_window as mw
+    assert group_items(win) == ["All runs  (9)"]
+    select_runs(win, lambda e: e.tags["Replicate"] == "2")
+    monkeypatch.setattr(mw.QInputDialog, "getText", lambda *a, **k: ("Speed series", True))
+    win.new_group_from_selection()
+    assert win.ws.active_group == "Speed series" and group_items(win) == ["All runs  (9)", "Speed series  (3)"]
+    assert win.tree.topLevelItemCount() == 3 and len(win.ws.series()) == 3  # only the group's runs
+    # the same run in a second group
+    win.activate_group(None)
+    select_runs(win, lambda e: e.group == "0.25 mm/min")
+    win.add_selected_to_group("S1 replicates")  # what dropping runs onto a group does
+    assert "S1 replicates  (3)" in group_items(win)
+    assert sum(len(e.groups) == 2 for e in win.ws.entries) == 1
+    # Average by Run: a flat list, every run on its own
+    win.activate_group("S1 replicates")
+    win.options.average_by.setCurrentIndex(win.options.average_by.findData("Run"))
+    assert win.tree.topLevelItemCount() == 3 and all(win.tree.topLevelItem(i).data(0, w_role())
+                                                      for i in range(3))
+    assert "by run" in win.panels["compare"].figure.axes[0].get_title(loc="left")
+    # clicking All runs restores its own view
+    win.group_list.setCurrentRow(0)
+    assert win.ws.active_group is None and win.ws.average_by == "Condition"
+    win.group_list.setCurrentRow(1)  # S1 replicates
+    assert win.ws.average_by == "Run"
+    # remove one run from the group being shown
+    select_runs(win, lambda e: e.tags["Replicate"] == "1")
+    win.remove_selected_from_group()
+    assert "S1 replicates  (2)" in group_items(win)
+    monkeypatch.setattr(mw.QInputDialog, "getText", lambda *a, **k: ("Slow reps", True))
+    win.rename_group("S1 replicates")
+    assert "Slow reps  (2)" in group_items(win) and win.ws.active_group == "Slow reps"
+    monkeypatch.setattr(mw.QMessageBox, "question", lambda *a, **k: mw.QMessageBox.StandardButton.Yes)
+    win.delete_group("Slow reps")
+    assert win.ws.active_group is None and "Slow reps" not in " ".join(group_items(win))
+    assert "Groups work like playlists" in mw.GROUPING_HELP
+
+
+def test_recent_folders_are_remembered(win, speeds, tmp_path):
+    names = [a.text() for a in win.recent_folders_menu.actions() if a.text()]
+    assert names[0].startswith("2026-10-11") and names[-1] == "Clear recent folders"
+    other = tmp_path / "other"
+    other.mkdir()
+    win.open_folder_path(other)
+    assert win._recent_folders()[:2] == [str(other.resolve()), str(speeds.resolve())]
+    other.rmdir()
+    win._rebuild_recent_folders()
+    assert not win.recent_folders_menu.actions()[0].isEnabled()  # gone: greyed out
+    win._clear_recent_folders()
+    assert win._recent_folders() == []

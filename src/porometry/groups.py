@@ -31,6 +31,7 @@ class GroupData:
     analyses: list[Analysis]
     labels: list[str] = field(default_factory=list)
     excluded: list[Analysis] = field(default_factory=list)
+    field: str = ""  # the 'average by' field these groups come from (for titles)
 
     @property
     def n(self) -> int:

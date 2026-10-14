@@ -60,8 +60,8 @@ class PlotOptionsPanel(QWidget):
         box = QGroupBox("Groups and colours")
         f = QFormLayout(box)
         self.average_by = QComboBox()
-        self.average_by.setToolTip("Runs with the same value of this field are averaged (Groups table, group means, "
-                                   "Compare groups).")
+        self.average_by.setToolTip("Runs with the same value of this field are averaged (Averages table, group "
+                                   "means, Compare tab). 'Run' keeps every run separate, to compare replicates.")
         f.addRow("Average by", self.average_by)
         self.color_by = QComboBox()
         self.color_by.setToolTip("Run: every run its own colour. A field: runs with the same value share a colour "
@@ -157,11 +157,12 @@ class PlotOptionsPanel(QWidget):
         self._quiet = True
         try:
             ws, o = self.ws, self.opts
-            for combo, items, cur in ((self.average_by, ws.fields, ws.average_by),
+            for combo, items, cur in ((self.average_by, [*ws.fields, RUN], ws.average_by),
                                       (self.color_by, [RUN, *ws.fields], ws.color_by)):
                 combo.clear()
                 for it in items:
-                    combo.addItem(it, it)
+                    text = "Run (no averaging)" if (it == RUN and combo is self.average_by) else it
+                    combo.addItem(text, it)
                 combo.setCurrentIndex(max(combo.findData(cur), 0))
             for combo, cur in ((self.palette, ws.palette), (self.display, o.display), (self.units, o.units),
                                (self.metric, o.compare_metric), (self.legend, o.legend)):

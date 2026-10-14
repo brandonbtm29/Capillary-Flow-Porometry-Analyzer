@@ -208,7 +208,7 @@ def test_limits_legend_and_fonts(speeds):
     ax = make_figure("flow", ws.series(), PlotOptions(), font_pt=7).axes[0]
     assert ax.xaxis.label.get_fontsize() == pytest.approx(7)
     title = make_figure("compare", ws.series(), PlotOptions(), groups=ws.group_data()).axes[0].get_title(loc="left")
-    assert title.startswith("Mean flow pore by group") and "ANOVA" in title
+    assert title.startswith("Mean flow pore by condition") and "ANOVA" in title
 
 
 def test_excel_has_statistics(speeds, tmp_path):
@@ -266,3 +266,68 @@ def test_session_errors(tmp_path):
     with pytest.raises(session.SessionError, match="newer version"):
         session.load(bad)
     assert RUN == "Run"
+
+
+# ---------------------------------------------------------------- named groups (v0.5)
+def test_named_groups_many_to_many_and_scope(speeds):
+    from porometry.workspace import GROUPS
+    ws = loaded(speeds, tag_store=SidecarTags())
+    slow = [e for e in ws.entries if e.group == "0.25 mm/min"]
+    second = [e for e in ws.entries if e.tags["Replicate"] == "2"]
+    ws.add_to_group(slow, "S1 replicates")
+    ws.add_to_group(second, "Speed series")
+    both = next(e for e in slow if e in second)
+    assert both.groups == ["S1 replicates", "Speed series"]  # one run, two groups
+    assert ws.group_names() == ["S1 replicates", "Speed series"]
+    assert GROUPS not in ws.fields
+    csv_text = (speeds / SIDECAR).read_text(encoding="utf-8-sig")
+    assert "Groups" in csv_text.splitlines()[0] and "S1 replicates; Speed series" in csv_text
+
+    ws.active_group = "Speed series"
+    assert {e.name for e in ws.scope()} == {e.name for e in second}
+    assert len(ws.series()) == 3 and len(ws.summary_frame()) == 3
+    assert [g.name for g in ws.group_data()] == ["0.25 mm/min", "2.00 mm/min", "10.00 mm/min"]
+    assert all(g.n == 1 for g in ws.group_data())
+
+    # survives a reload from run_tags.csv
+    again = loaded(speeds, tag_store=SidecarTags())
+    assert again.group_names() == ["S1 replicates", "Speed series"] and GROUPS not in again.fields
+
+    ws.rename_group("Speed series", "Speeds")
+    assert ws.active_group == "Speeds" and both.groups == ["S1 replicates", "Speeds"]
+    ws.remove_from_group(second, "Speeds")
+    assert ws.active_group is None and "Speeds" not in ws.group_names()
+    ws.delete_group("S1 replicates")
+    assert ws.group_names() == [] and both.groups == []
+    with pytest.raises(ValueError):
+        ws.add_to_group(slow, "  ")
+
+
+def test_average_by_run_and_group_views(speeds):
+    from porometry.workspace import RUN
+    ws = loaded(speeds)
+    ws.add_to_group(ws.entries[:3], "Reps")
+    ws.average_by, ws.color_by = "Condition", "Condition"
+    v = ws.activate_group("Reps", {"display": "means"})  # first visit: nothing remembered yet
+    assert v == {} and ws.group_views[""]["display"] == "means"
+    ws.average_by, ws.color_by = RUN, "Replicate"
+    ws.regroup()
+    assert [e.group for e in ws.scope()] == [e.name for e in ws.entries[:3]]
+    gc = ws.group_colors()
+    assert all(gc[e.name] == e.color for e in ws.scope())  # compare chart colours = run colours
+    assert ws.stats_frame(["mean_flow_d"]).iloc[0]["Test"] == "none"  # one run per 'group': no test
+    ws.activate_group(None, {"display": "runs"})
+    assert (ws.average_by, ws.color_by) == ("Condition", "Condition")  # all runs' view comes back
+    back = ws.activate_group("Reps")
+    assert (ws.average_by, ws.color_by, back["display"]) == (RUN, "Replicate", "runs")
+
+
+def test_session_keeps_active_group(speeds, tmp_path):
+    from porometry import session
+    ws = loaded(speeds)
+    ws.add_to_group(ws.entries[:2], "Pair")
+    ws.activate_group("Pair", {"display": "both"})
+    f = session.save(tmp_path / "s.cfpa", ws, PlotOptions())
+    ws2 = Workspace(tag_store=ws.tag_store)  # same tags (memory store here; run_tags.csv in real use)
+    session.apply(session.load(f), ws2)
+    assert ws2.active_group == "Pair" and len(ws2.scope()) == 2 and "" in ws2.group_views

@@ -20,8 +20,17 @@ from .tags import DEFAULT_FIELDS, MemoryTags, SidecarTags, TagStore, auto_tags, 
 
 _SUFFIX = re.compile(r"(?:[_\- ](?:TEST|RUN|T)\d+)$", re.IGNORECASE)
 _SPECIMEN = re.compile(r"(?:[_\- ](?:S|SAMPLE)\d+)$", re.IGNORECASE)
-RUN = "Run"  # "colour by" choice: every run its own colour
+RUN = "Run"  # "colour by" / "average by" choice: every run on its own
+GROUPS = "Groups"  # your named groups, stored like a tag: "Speed series; S1 replicates"
 STYLE_KEYS = ("color", "marker", "linestyle", "linewidth", "label")
+
+
+def split_groups(text: str) -> list[str]:
+    return [g.strip() for g in (text or "").split(";") if g.strip()]
+
+
+def join_groups(names) -> str:
+    return "; ".join(dict.fromkeys(n.strip() for n in names if n and n.strip()))
 
 
 def default_tag_store() -> TagStore:
@@ -66,6 +75,11 @@ class Entry:
     def label(self) -> str:
         return self.style.get("label") or self.name
 
+    @property
+    def groups(self) -> list[str]:
+        """Your named groups this run is in (a run can be in several)."""
+        return split_groups(self.tags.get(GROUPS, ""))
+
 
 @dataclass
 class Workspace:
@@ -79,6 +93,8 @@ class Workspace:
     value_colors: dict[str, dict[str, str]] = field(default_factory=dict)  # field -> value -> colour
     run_styles: dict[str, dict] = field(default_factory=dict)              # resolved path -> style overrides
     legacy_groups: dict[str, str] = field(default_factory=dict)  # pre-0.4 "mark as duplicates" (path -> name)
+    active_group: str | None = None  # a named group: plots, tables and statistics show only its runs
+    group_views: dict[str, dict] = field(default_factory=dict)  # group ("" = all runs) -> how it was plotted
     tag_store: TagStore = field(default_factory=default_tag_store)
     entries: list[Entry] = field(default_factory=list)
     errors: list[tuple[Path, str]] = field(default_factory=list)
@@ -112,7 +128,7 @@ class Workspace:
             known.add(p.resolve())
             added.append(e)
         for f in self.tag_store.fields_seen():
-            if f not in self.fields:
+            if f not in self.fields and f != GROUPS:
                 self.fields.append(f)
         self.restyle()
         return added
@@ -162,6 +178,7 @@ class Workspace:
                 d[new] = d.pop(old)
 
     def clear(self) -> None:
+        self.active_group = None
         self.entries.clear()
         self.errors.clear()
         self._loaded = 0
@@ -189,13 +206,76 @@ class Workspace:
     def group_of(self, e: Entry) -> str:
         return e.tags.get(self.average_by, "") or e.name
 
+    # ---------------------------------------------------------------- named groups
+    def scope(self) -> list[Entry]:
+        """The runs being looked at: the active named group, or all loaded runs."""
+        if self.active_group is None:
+            return list(self.entries)
+        return [e for e in self.entries if self.active_group in e.groups]
+
+    def group_names(self) -> list[str]:
+        return sorted({g for e in self.entries for g in e.groups}, key=sort_key)
+
+    def _set_groups(self, e: Entry, names: list[str]) -> None:
+        self.tag_store.set(e.path, GROUPS, join_groups(names) or None)
+        self._retag(e)
+
+    def add_to_group(self, entries: list[Entry], name: str) -> None:
+        name = name.strip().replace(";", ",")
+        if not name:
+            raise ValueError("A group needs a name")
+        for e in entries:
+            if name not in e.groups:
+                self._set_groups(e, [*e.groups, name])
+
+    def remove_from_group(self, entries: list[Entry], name: str) -> None:
+        for e in entries:
+            if name in e.groups:
+                self._set_groups(e, [g for g in e.groups if g != name])
+        if self.active_group == name and not any(name in e.groups for e in self.entries):
+            self.active_group = None
+
+    def rename_group(self, old: str, new: str) -> None:
+        new = new.strip().replace(";", ",")
+        if not new or new == old:
+            return
+        for e in self.entries:
+            if old in e.groups:
+                self._set_groups(e, [new if g == old else g for g in e.groups])
+        if self.active_group == old:
+            self.active_group = new
+
+    def delete_group(self, name: str) -> None:
+        """Takes every loaded run out of the group (the runs themselves stay)."""
+        self.remove_from_group([e for e in self.entries if name in e.groups], name)
+        if self.active_group == name:
+            self.active_group = None
+
+    def view(self) -> dict:
+        return {"average_by": self.average_by, "color_by": self.color_by, "palette": self.palette}
+
+    def activate_group(self, name: str | None, extra: dict | None = None) -> dict:
+        """Show a named group (None = all runs). Each group remembers its own Average by / Colour by /
+        palette (plus anything in `extra`, e.g. the display mode); returns what the new group remembered."""
+        self.group_views[self.active_group or ""] = {**self.view(), **(extra or {})}
+        self.active_group = name
+        v = dict(self.group_views.get(name or "", {}))
+        if v.get("average_by") in (*self.fields, RUN):
+            self.average_by = v["average_by"]
+        if v.get("color_by") in (*self.fields, RUN):
+            self.color_by = v["color_by"]
+        if v.get("palette"):
+            self.palette = v["palette"]
+        self.regroup()
+        return v
+
     def is_edited(self, e: Entry, fld: str) -> bool:
         return fld in self.tag_store.get(e.path)
 
     def set_tag(self, entries: list[Entry], fld: str, value: str) -> None:
         """Set a field for these runs (saved next to the data). Blank = back to automatic."""
         value = (value or "").strip()
-        if fld not in self.fields:
+        if fld not in self.fields and fld not in (RUN, GROUPS):
             self.fields.append(fld)
         for e in entries:
             self.tag_store.set(e.path, fld, value if value and value != e.auto.get(fld, "") else None)
@@ -211,7 +291,7 @@ class Workspace:
 
     def add_field(self, name: str) -> None:
         name = name.strip()
-        if name and name not in self.fields and name != RUN:
+        if name and name not in self.fields and name not in (RUN, GROUPS):
             self.fields.append(name)
 
     def values(self, fld: str) -> list[str]:
@@ -294,13 +374,17 @@ class Workspace:
         self.restyle()
 
     def group_colors(self) -> dict[str, str]:
-        """Colour of each 'average by' group: the colour-by colour when both use the same field."""
-        vals = self.values(self.average_by)
-        if self.color_by == self.average_by:
-            first = {}
+        """Colour of each 'average by' group.
+
+        Colour by = Average by: the runs' shared colour. Average by Run: the run's own colour.
+        Otherwise one palette colour per group, or the colour you picked for that group.
+        """
+        if self.color_by == self.average_by or self.average_by == RUN:
+            first: dict[str, str] = {}
             for e in sorted(self.entries, key=lambda e: e.load_index):
                 first.setdefault(e.group, e.color)
-            return {v: first.get(v, "#888888") for v in vals}
+            return first
+        vals = self.values(self.average_by)
         cols = palette_colors(self.palette, len(vals))
         out = {v: cols[i] for i, v in enumerate(vals)}
         out.update({k: c for k, c in self.value_colors.get(self.average_by, {}).items() if k in out})
@@ -308,7 +392,7 @@ class Workspace:
 
     # ---------------------------------------------------------------- views
     def series(self, entries: list[Entry] | None = None, highlight: str | None = None) -> list[Series]:
-        entries = [e for e in self.entries if e.visible] if entries is None else entries
+        entries = [e for e in self.scope() if e.visible] if entries is None else entries
         return [Series(e.analysis, e.color, e.marker, e.qc.level, e.label, highlighted=(e.name == highlight),
                        linestyle=e.style.get("linestyle"), linewidth=e.style.get("linewidth"))
                 for e in entries]
@@ -318,20 +402,20 @@ class Workspace:
         Runs whose QC is worse than `max_level` are kept apart (shown, not averaged)."""
         colors = self.group_colors()
         by: dict[str, list[Entry]] = {}
-        for e in self.entries:
+        for e in self.scope():
             if e.visible or not visible_only:
                 by.setdefault(e.group, []).append(e)
         out = []
         for g in sorted(by, key=sort_key):
             use = [e for e in by[g] if e.qc.level <= max_level]
             out.append(GroupData(g, colors.get(g, "#888888"), [e.analysis for e in use], [e.label for e in use],
-                                 [e.analysis for e in by[g] if e not in use]))
+                                 [e.analysis for e in by[g] if e not in use], self.average_by))
         return out
 
     def summary_frame(self, units: str = "kPa") -> pd.DataFrame:
         f = PSI_TO_KPA if units == "kPa" else 1.0
         rows = []
-        for e in self.entries:
+        for e in self.scope():
             a = e.analysis
 
             def p(x):
@@ -340,8 +424,9 @@ class Workspace:
             def d(x):
                 return None if x is None else round(x, 4)
 
-            row = {"Run": e.name, "Group": e.group}
+            row = {"Run": e.name, "Average group": e.group}
             row.update({k: e.tags.get(k, "") for k in self.fields if k not in row})
+            row[GROUPS] = e.tags.get(GROUPS, "")
             row.update({
                 "QC": e.qc.status,
                 "QC issues": e.qc.summary(),
@@ -367,7 +452,7 @@ class Workspace:
         """Mean ± SD per group, using runs whose QC is no worse than `max_level`."""
         rows = []
         groups: dict[str, list[Entry]] = {}
-        for e in self.entries:
+        for e in self.scope():
             groups.setdefault(e.group, []).append(e)
         for g in sorted(groups, key=sort_key):
             es = groups[g]

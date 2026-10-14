@@ -374,8 +374,11 @@ def draw_compare(ax: Axes, series: list[Series], o: PlotOptions, groups: list[G.
                     label=None if shown_excluded else "left out (QC)")
             shown_excluded = True
     ax.set_xticks(range(len(groups)))
-    ax.set_xticklabels([f"{g.name}\nn={len(values.get(g.name, []))}" for g in groups],
-                       rotation=0 if len(groups) <= 5 else 30, ha="center" if len(groups) <= 5 else "right")
+    show_n = any(len(v) != 1 for v in values.values())
+    names = [f"{g.name}\nn={len(values.get(g.name, []))}" if show_n else g.name for g in groups]
+    tilt = len(groups) > 5 or max((len(g.name) for g in groups), default=0) * len(groups) > 60
+    ax.set_xticklabels(names, rotation=30 if tilt else 0, ha="right" if tilt else "center",
+                       rotation_mode="anchor" if tilt else "default")
     ax.set_xlim(-0.6, max(len(groups) - 0.4, 0.6))
     ax.set_ylabel(G.metric_label(metric, o.units))
     every = [v for vs in values.values() for v in vs]
@@ -386,7 +389,8 @@ def draw_compare(ax: Axes, series: list[Series], o: PlotOptions, groups: list[G.
     if o.title:
         label = G.METRICS[metric][0]
         sub = f"  ({stats.summary()})" if stats and stats.p is not None else ""
-        ax.set_title(f"{label} by group{sub}", loc="left", wrap=True)
+        by = (groups[0].field or "group").lower() if groups else "group"
+        ax.set_title(f"{label} by {by}{sub}", loc="left", wrap=True)
     if not groups:
         ax.text(0.5, 0.5, "No groups to compare.", ha="center", va="center", color=INK2, transform=ax.transAxes)
     _limits(ax, "compare", o)
@@ -396,7 +400,7 @@ def draw_compare(ax: Axes, series: list[Series], o: PlotOptions, groups: list[G.
 
 DRAWERS = {"flow": draw_flow, "cff": draw_cff, "psd": draw_psd, "compare": draw_compare}
 KIND_TITLES = {"flow": "Flow vs pressure", "cff": "Cumulative filter flow", "psd": "Pore size distribution",
-               "compare": "Compare groups", "all": "All three curves (stacked)"}
+               "compare": "Compare", "all": "All three curves (stacked)"}
 
 
 def make_figure(kind: str, series: list[Series], options: PlotOptions | None = None,

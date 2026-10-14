@@ -62,22 +62,45 @@ The window has the run list on the left, plots and tables in the middle, and **P
 1. **Open folder…** (or drag a folder or `.CFT` files onto the window). Subfolders are included.
 2. Tick runs to plot them. Click a run to highlight it and read its header, tags and QC findings under
    **Run details**.
-3. Tabs: **Flow vs pressure**, **Cumulative filter flow**, **Pore size distribution** and **Compare groups**.
+3. Tabs: **Flow vs pressure**, **Cumulative filter flow**, **Pore size distribution** and **Compare**.
 
-### Tags and groups
+### Groups, Average by and tags
 
-Every run has tags: **Condition**, **Sample**, **Replicate** and **Folder**, read from the file name
+There are two ideas (also in the app under *Help > How grouping works*):
+
+**Groups pick which runs you're looking at.** They work like playlists: *All runs*, then your own groups
+in the list above the runs.
+
+- Select runs (Ctrl/Shift-click) → **New group from selection…**. Add more with **Add to group**,
+  right-click > *Add to group*, or by dragging runs onto a group.
+- **A run can be in many groups** (e.g. in "Speed series" and in "S1 replicates").
+- Click a group: plots, tables, statistics, the Compare tab and exports show only its runs.
+- Each group remembers how it's plotted (Average by, Colour by, palette, Show).
+- Right-click a group to rename or delete it (deleting never touches the runs or files).
+
+**Average by decides which of those runs are replicates of each other** (Plot options): Condition by
+default, or Sample, Folder, a field you added, or **Run (no averaging)** to compare replicates one by one.
+
+| You want to | Group | Average by | Colour by | Show |
+|---|---|---|---|---|
+| Compare speeds, replicates averaged | "Speed series" | Condition | Condition | Group means ± SD |
+| See how the replicates of one sample agree | "S1 replicates" | Run | Replicate | Individual runs |
+| Compare samples at one speed | "0.25 mm/min samples" | Sample | Sample | Runs + group means |
+
+**Tags** describe each run: **Condition**, **Sample**, **Replicate** and **Folder**, read from the file name
 (`CFP-0_25MM_MIN_S1_TEST2` → Condition *0.25 mm/min*, Sample *S1*, Replicate *2*) and the folder.
+Double-click a cell to change one run, or select several and use **Set Condition…** (*Runs > Set field*).
+A blank value goes back to the automatic one; values you set show in italics. Add your own fields with
+*Runs > Add field…* (e.g. Membrane, Batch).
 
-- **Change a tag:** double-click its cell in the run list, or select several runs (Ctrl/Shift-click) and use
-  **Set Condition…** (or right-click > *Set field*). A blank value goes back to the automatic one. Values
-  you set are shown in italics.
-- **Your own fields:** *Runs > Add field…* (e.g. Membrane, Batch, Treatment).
-- Tags you change are saved in **`run_tags.csv` next to the `.CFT` files**, so they travel with the data
-  (SyncThing) and open in Excel. Only the fields you changed are stored there.
-- **Average by** (Plot options) picks the field that groups runs: the run list, the **Groups (mean ± SD)**
-  table, group means, the Compare chart and the statistics all use it. Runs that fail QC are never averaged;
-  runs with warnings are, unless you turn that off in Settings.
+Tags you change and group membership are saved in **`run_tags.csv` next to the `.CFT` files** (group names
+in its *Groups* column), so they travel with the data through SyncThing and open in Excel. Runs that fail QC
+are never averaged; runs with warnings are, unless you turn that off in Settings.
+
+### Recent folders
+
+*File > Recent folders*, or the arrow on the **Open folder** button, lists the last 10 folders you opened
+on this computer. Each computer keeps its own list, because the paths differ between the Mac and the PC.
 
 ### Colours, markers and plot options
 
@@ -94,7 +117,7 @@ Every run has tags: **Condition**, **Sample**, **Replicate** and **Folder**, rea
 
 ### Compare groups and statistics
 
-The **Compare groups** tab plots one number per group (mean flow pore, largest pore, smallest pore, bubble
+The **Compare** tab plots one number per *Average by* group (mean flow pore, largest pore, smallest pore, bubble
 point or mean flow pressure; pick it under *Compare*): every run as a point and the group mean ± SD. Runs
 left out by QC show as grey crosses. The **Statistics** table and the plot title give Welch's t-test for
 two groups, or one-way ANOVA with Tukey's pairwise comparisons for three or more. Groups with a single
