@@ -259,7 +259,7 @@ class MainWindow(QMainWindow):
           SP.SP_FileDialogDetailedView).setMenuRole(QAction.MenuRole.PreferencesRole)
         A("app_icon", "Create app icon", self.make_app_icon, None, f"Put the app icon {shortcuts.where()}")
         A("updates", "Check for updates…", self.show_updates, None,
-          "Check GitHub for a newer version of the app and install it")
+          "Check GitHub for a newer version of the app and install it", SP.SP_BrowserReload).setIconText("Update")
         A("whats_new", "What's new", self.show_changelog)
         A("guide", "User guide (online)", lambda: QDesktopServices.openUrl(QUrl(REPO_URL + "#readme")))
         A("report", "Report a problem…", lambda: QDesktopServices.openUrl(QUrl(REPO_URL + "/issues/new")))
@@ -347,7 +347,7 @@ class MainWindow(QMainWindow):
         open_btn.setToolTip("Open a folder (click the arrow for recent folders)")
         tb.addWidget(open_btn)
         for k in ("add_files", "save_session", None, "export_summary", "export_figure", "copy_figure",
-                  None, "archive", None, "settings"):
+                  None, "archive", None, "settings", "updates"):
             if k is None:
                 tb.addSeparator()
             else:

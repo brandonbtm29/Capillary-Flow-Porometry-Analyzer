@@ -31,7 +31,8 @@ def test_menus_and_slim_toolbar(win):
                 "archive", "settings", "updates", "plot_panel"):
         assert key in win.actions
     tb = win.findChild(QtWidgets.QToolBar)
-    assert len([a for a in tb.actions() if not a.isSeparator()]) == 8
+    assert len([a for a in tb.actions() if not a.isSeparator()]) == 9
+    assert win.actions["updates"] in tb.actions() and win.actions["updates"].iconText() == "Update"
     assert win.plot_tabs.count() == 4 and win.table_tabs.count() == 3
 
 

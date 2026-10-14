@@ -10,6 +10,12 @@ Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**
 Each release is tagged `vX.Y.Z` on GitHub. The version shows in the window title and the bottom-right corner
 of the app.
 
+## 0.5.1 - 2026-10-14
+
+### Fixed
+- The **Update** button is back on the toolbar. Version 0.4.0 had moved it to *Help > Check for updates…*
+  without saying so. Both still work, and so does clicking the version number in the bottom-right corner.
+
 ## 0.5.0 - 2026-10-14
 
 ### Added

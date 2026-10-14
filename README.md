@@ -154,8 +154,8 @@ so the same session opens on the Mac and the PC.
 ### Updating
 
 The version you have is in the bottom-right corner. The app checks GitHub when it starts; when a newer
-version exists, that corner turns into a link (*v0.4.0 → v0.5.0 available*). Click it, or *Help > Check
-for updates*, to see what's new and **Update and restart**. The update pulls the new version into this
+version exists, that corner turns into a link (*v0.4.0 → v0.5.0 available*). Click it, the **Update**
+button on the toolbar, or *Help > Check for updates*, to see what's new and **Update and restart**. The update pulls the new version into this
 folder (`git pull`), reinstalls dependencies if they changed, and reopens the runs you had loaded. Your data
 and settings are not touched. It needs git, and it won't run if files in the app folder have local changes.
 Turn off the start-up check in the same window. What changed in each version is in `CHANGELOG.md`.
