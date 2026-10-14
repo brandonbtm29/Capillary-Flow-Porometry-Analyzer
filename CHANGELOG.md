@@ -5,6 +5,16 @@ While the app is below 1.0, a **minor** bump (0.2 → 0.3) adds features or chan
 and a **patch** bump (0.2.0 → 0.2.1) is a bug fix only. Each release is tagged `vX.Y.Z` on GitHub.
 The version shows in the window title and the bottom-right corner of the app.
 
+## 0.3.1 - 2026-10-13
+
+### Added
+- **App icon on both computers.** On a Mac, the first launch puts *Capillary Flow Porometry Analyzer.app*,
+  with the app icon, in Applications in your home folder, so it shows in Launchpad and Spotlight and can be
+  dragged to the Dock. On Windows, the first launch makes the Desktop and Start menu icons, which
+  `make_shortcut.ps1` used to do. Pin the Start menu entry to the taskbar and it shares one button with the
+  open window.
+- *Settings… > Create app icon* remakes the icon, for example after moving the app folder.
+
 ## 0.3.0 - 2026-10-13
 
 ### Added

@@ -26,6 +26,10 @@ comparison notebook. The first launch sets everything up in `~/.venvs/porometry-
 won't run (a copy synced from Windows loses the "executable" flag), run `chmod +x *.command` once in
 Terminal in this folder. If macOS blocks them, right-click and choose Open. You need Python 3.10+ (`brew install python`, or python.org).
 
+The first launch also puts **Capillary Flow Porometry Analyzer.app**, with the app icon, in the
+Applications folder in your home folder (`~/Applications`), so it shows in Launchpad and Spotlight. Drag
+it to the Dock to keep it there. After that you don't need the `.command` file.
+
 ### Windows
 
 You need Python 3.10 or newer ([python.org](https://www.python.org/downloads/); tick
@@ -34,8 +38,9 @@ You need Python 3.10 or newer ([python.org](https://www.python.org/downloads/); 
 **Easiest:** double-click `Capillary Flow Porometry Analyzer.bat`. The first launch creates a private Python
 environment in `.venv` and installs the dependencies (about a minute). Later launches open straight away.
 
-**Desktop / Start menu shortcut** (with the app icon): after the first launch, run
-`powershell -ExecutionPolicy Bypass -File make_shortcut.ps1` in this folder.
+The first launch also puts a **Capillary Flow Porometry Analyzer** icon on the Desktop and in the Start
+menu. To keep it on the taskbar, right-click the Start menu entry and choose *Pin to taskbar*. The pinned
+icon and the open window share one taskbar button.
 
 **By hand**, in PowerShell in this folder:
 
@@ -68,7 +73,9 @@ pytest               # tests
 
    **Export figure** saves the current plot, or all three plots stacked in one figure.
 
-6. **Archive…** moves bad or practice runs into an `Archive` folder next to them, with a reason logged in
+6. **Settings… > Create app icon** remakes the Desktop / Start menu icon (Windows) or the app in
+   `~/Applications` (macOS). Use it if the icon goes missing or the app folder moves.
+7. **Archive…** moves bad or practice runs into an `Archive` folder next to them, with a reason logged in
    `Archive/archive_log.csv`. They stop loading with the folder; **Archived runs…** brings them back.
    **Remove from list** only hides a run for this session.
 
@@ -173,6 +180,7 @@ src/porometry/
   workspace.py  loaded runs, grouping, summary tables
   archive.py    move runs to Archive/ and back
   updater.py    check GitHub for a newer version, update the git clone
+  shortcuts.py  app icon: Windows shortcuts, macOS .app bundle, Linux .desktop entry
   export.py     Excel / CSV / figure export
   figures.py    matplotlib plots (shared by app and exports)
   slides.py     PowerPoint export (write_deck)

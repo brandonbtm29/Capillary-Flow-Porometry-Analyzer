@@ -34,6 +34,7 @@ python tools/caprep_check.py         # re-check against CapRep's own reports (ne
 | `qc.py` | data-quality checks -> `QCReport` (pass/info/warn/fail); uses the raw CFF (`Analysis.cff_raw`) |
 | `workspace.py` | loaded runs, stable colours, duplicate grouping (auto + manual overrides), archive/restore, summary/group tables |
 | `updater.py` | latest `vX.Y.Z` tag from the GitHub API + CHANGELOG notes; `apply_update()` = `git fetch` + `merge --ff-only origin/main`, `pip install -e .` only if `pyproject.toml` changed; refuses dirty tree / other branch |
+| `shortcuts.py` | app icon: Windows `.lnk` (Desktop + Start menu, written via IShellLink/IPropertyStore in a PowerShell Add-Type script so it carries AppUserModelID `APP_ID`, same as `gui/app.py`), macOS `~/Applications/…app` (bash launcher + `.icns` from `porometry_1024.png` via Pillow; never replaces a bundle with another ID), Linux `.desktop`. Writes `<venv>/.shortcut-made`; the launchers run it once when that marker is missing |
 | `archive.py` | move a `.CFT` into `Archive/` next to it + `archive_log.csv`; `list_archived()`, `restore_file()`; folders named `Archive` are skipped by `Workspace.add_folder` |
 | `export.py` | Excel (Summary, Groups, QC, one sheet per run) / CSV, figures |
 | `figures.py` | matplotlib drawing shared by GUI and export; colour-blind-checked palette, never cycled past 8; axis titles 14 pt, ticks 12 pt |
@@ -71,6 +72,7 @@ Checked on 12 Oct 2026 against 311 CapRep reports in `C:\CFP-1500AEX\StudentData
 - Runs that fail QC still plot, dashed and labelled `[QC fail]`.
 - **Archive** (13 Oct 2026) moves files into `Archive/` next to them (never deletes) and logs date, QC and reason; **Remove from list** only affects the current session.
 - **Update button** (13 Oct 2026, v0.3.0): checks GitHub on start-up (QSettings `check_updates`, on by default), shows a link in the status bar, never updates without a click; update = git fast-forward + restart with the same runs.
+- **App icon** (13 Oct 2026, v0.3.1, Brandon chose the number): made automatically on first launch on both OSes and from Settings > Create app icon; `make_shortcut.ps1` is now a thin wrapper around `python -m porometry.shortcuts`.
 - Name: **Capillary Flow Porometry Analyzer** (13 Oct 2026), to avoid confusion with other porometry techniques.
 - Analysis settings are stored in QSettings key `analysis_v2` (the old `analysis` key held the pre-check smallest-pore level and is ignored).
 - Public repo, MIT license; data in SyncThing (12 Oct 2026).

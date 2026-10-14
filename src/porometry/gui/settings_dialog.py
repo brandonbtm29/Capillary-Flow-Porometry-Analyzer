@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import html
+
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QGroupBox, QLabel,
-    QPushButton, QSpinBox, QVBoxLayout,
+    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
+    QMessageBox, QPushButton, QSpinBox, QVBoxLayout,
 )
 
+from .. import shortcuts
 from ..analysis import Settings
 from ..qc import QCSettings
 
@@ -93,6 +97,18 @@ class SettingsDialog(QDialog):
         f.addRow(QLabel("Runs that fail QC are never averaged."))
         lay.addWidget(box)
 
+        # --- this computer
+        box = QGroupBox("This computer")
+        row = QHBoxLayout(box)
+        info = QLabel(f"App icon {shortcuts.where()}.")
+        info.setWordWrap(True)
+        row.addWidget(info, 1)
+        self.icon_btn = QPushButton("Create app icon")
+        self.icon_btn.setToolTip("Makes (or remakes) the icon that starts this app. Use it again if the app folder moves.")
+        self.icon_btn.clicked.connect(self._make_icon)
+        row.addWidget(self.icon_btn)
+        lay.addWidget(box)
+
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         reset = QPushButton("Reset to defaults")
         btns.addButton(reset, QDialogButtonBox.ButtonRole.ResetRole)
@@ -101,6 +117,18 @@ class SettingsDialog(QDialog):
         btns.rejected.connect(self.reject)
         lay.addWidget(btns)
         self._base_qc = qc
+
+    def _make_icon(self):
+        self.setCursor(Qt.CursorShape.WaitCursor)
+        try:
+            made = shortcuts.create()
+        except Exception as exc:
+            QMessageBox.warning(self, "App icon", f"Could not create the app icon:\n{exc}")
+            return
+        finally:
+            self.unsetCursor()
+        paths = "".join(f"<li>{html.escape(str(p))}</li>" for p in made)
+        QMessageBox.information(self, "App icon", f"Created the app icon {html.escape(shortcuts.where())}:<ul>{paths}</ul>")
 
     def _reset(self):
         s, q = Settings(), QCSettings()

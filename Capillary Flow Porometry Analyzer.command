@@ -9,4 +9,6 @@ if [ ! -x "$VENV/bin/python" ]; then
   "$VENV/bin/python" -m pip install --upgrade pip
   "$VENV/bin/python" -m pip install -e ".[notebook]" || { echo "Installing dependencies failed."; read -r; exit 1; }
 fi
+# App icon in ~/Applications, made once (Settings > Create app icon remakes it)
+[ -f "$VENV/.shortcut-made" ] || "$VENV/bin/python" -m porometry.shortcuts
 exec "$VENV/bin/python" -m porometry "$@"

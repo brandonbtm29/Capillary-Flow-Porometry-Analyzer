@@ -17,4 +17,6 @@ if not exist ".venv\Scripts\pythonw.exe" (
         exit /b 1
     )
 )
+rem Desktop + Start menu icon, made once (Settings > Create app icon remakes it)
+if not exist ".venv\.shortcut-made" ".venv\Scripts\python.exe" -m porometry.shortcuts
 start "" ".venv\Scripts\pythonw.exe" -m porometry %*

@@ -87,3 +87,16 @@ def test_main_window_update_hooks(app, monkeypatch):
 def test_repo_root_of_this_checkout():
     root = updater.repo_root()
     assert root is None or (root / "pyproject.toml").exists()
+
+
+def test_settings_create_app_icon_button(app, monkeypatch, tmp_path):
+    from porometry import shortcuts
+    from porometry.analysis import Settings
+    from porometry.gui import settings_dialog
+    from porometry.qc import QCSettings
+    made, shown = [tmp_path / "icon.lnk"], []
+    monkeypatch.setattr(shortcuts, "create", lambda: made)
+    monkeypatch.setattr(settings_dialog.QMessageBox, "information", lambda *a: shown.append(a[2]))
+    d = settings_dialog.SettingsDialog(Settings(), QCSettings(), "name", True)
+    d.icon_btn.click()
+    assert shown and "icon.lnk" in shown[0]

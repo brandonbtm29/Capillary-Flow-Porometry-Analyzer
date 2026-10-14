@@ -18,7 +18,8 @@ def main(argv: list[str] | None = None) -> int:
         # own taskbar entry and icon instead of Python's
         try:
             import ctypes
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("PorometryAnalyzer.App")
+            from ..shortcuts import APP_ID  # the shortcuts carry the same ID, so a pinned icon and the window are one button
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
         except (AttributeError, OSError):
             pass
 
