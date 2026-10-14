@@ -5,6 +5,15 @@ While the app is below 1.0, a **minor** bump (0.2 → 0.3) adds features or chan
 and a **patch** bump (0.2.0 → 0.2.1) is a bug fix only. Each release is tagged `vX.Y.Z` on GitHub.
 The version shows in the window title and the bottom-right corner of the app.
 
+## 0.3.0 - 2026-10-13
+
+### Added
+- **Update button.** *Update…* in the toolbar (or a click on the version number in the bottom-right
+  corner) checks GitHub for a newer version, shows what's new, and with **Update and restart** downloads it
+  and reopens the runs you had loaded. The app also checks quietly when it starts and turns the version
+  number into a link when an update is available; switch that off in the same window. It never updates
+  without asking, and refuses if files in the app folder have local changes.
+
 ## 0.2.0 - 2026-10-13
 
 ### Added

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import html
 import json
+import sys
 from dataclasses import asdict
 from pathlib import Path
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
-from PyQt6.QtCore import QByteArray, QSettings, QSortFilterProxyModel, Qt
+from PyQt6.QtCore import QByteArray, QProcess, QSettings, QSortFilterProxyModel, Qt, QTimer
 from PyQt6.QtGui import QAction, QFont, QKeySequence
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMainWindow,
@@ -17,7 +18,7 @@ from PyQt6.QtWidgets import (
     QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
-from .. import __version__
+from .. import __version__, updater
 from ..analysis import Settings
 from ..archive import ArchiveError, list_archived
 from ..cft import PSI_TO_KPA
@@ -28,6 +29,7 @@ from ..workspace import Entry, Workspace
 from .archive_dialog import ArchiveDialog, ArchivedRunsDialog
 from .models import DataFrameModel, color_icon, status_icon
 from .settings_dialog import SettingsDialog
+from .update_dialog import UpdateDialog, Worker
 
 NAME_ROLE = Qt.ItemDataRole.UserRole + 1
 PLOTS = [("flow", "Flow vs pressure", draw_flow), ("cff", "Cumulative filter flow", draw_cff),
@@ -62,7 +64,7 @@ class PlotPanel(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, check_updates: bool = False):
         super().__init__()
         apply_style()
         self.setWindowTitle(f"Capillary Flow Porometry Analyzer {__version__}")
@@ -74,9 +76,13 @@ class MainWindow(QMainWindow):
         self.highlight: str | None = None
         self._folders: set[Path] = set()  # folders opened this session (where to look for archived runs)
         self._building = False
+        self._update_info: updater.UpdateInfo | None = None
+        self._update_worker: Worker | None = None
         self._load_prefs()
         self._build_ui()
         self._refresh_all()
+        if check_updates and self._auto_update_check():
+            QTimer.singleShot(2000, self._background_update_check)
 
     # ================================================================== UI
     def _build_ui(self):
@@ -115,6 +121,7 @@ class MainWindow(QMainWindow):
         tb.addWidget(fig_btn)
         tb.addSeparator()
         act("Settings…", self.open_settings, "Ctrl+,")
+        act("Update…", self.show_updates, None, "Check GitHub for a newer version of the app and install it")
         tb.addSeparator()
 
         tb.addWidget(QLabel(" Units "))
@@ -213,7 +220,11 @@ class MainWindow(QMainWindow):
         split.setSizes([360, 1040])
         self.setCentralWidget(split)
         self.statusBar().showMessage("Open a folder of .CFT files, or drag files or folders onto this window.")
-        self.statusBar().addPermanentWidget(QLabel(f"v{__version__}  "))
+        self.version_label = QLabel(f"v{__version__}  ")
+        self.version_label.setToolTip("Click to check for updates")
+        self.version_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.version_label.mousePressEvent = lambda _ev: self.show_updates()
+        self.statusBar().addPermanentWidget(self.version_label)
 
         geo = self.qs.value("geometry")
         if isinstance(geo, QByteArray):
@@ -625,3 +636,45 @@ class MainWindow(QMainWindow):
         save_figure(self.ws, kind, path, self.plot_opts, highlight=self.highlight)
         self.statusBar().showMessage(f"Saved {path}", 8000)
 
+    # ================================================================== updates
+    def _auto_update_check(self) -> bool:
+        return self.qs.value("check_updates", "true") in ("true", True)
+
+    def _background_update_check(self):
+        self._update_worker = Worker(lambda _progress: updater.check(), self)
+        self._update_worker.done.connect(self._background_checked)
+        self._update_worker.start()
+
+    def _background_checked(self, info):
+        if isinstance(info, updater.UpdateInfo) and info.available:
+            self._update_info = info
+            self.version_label.setText(f"<a href='update'>v{info.current} → v{info.latest} available</a>  ")
+            self.statusBar().showMessage(f"Version {info.latest} is available: click it in the bottom-right "
+                                         "corner or use Update… in the toolbar.", 15000)
+
+    def show_updates(self):
+        dlg = UpdateDialog(self._update_info, self._auto_update_check(), self)
+        dlg.exec()
+        self.qs.setValue("check_updates", "true" if dlg.auto.isChecked() else "false")
+        if dlg.info is not None and not dlg.info.error:
+            self._update_info = dlg.info
+            if not dlg.info.available:
+                self.version_label.setText(f"v{__version__}  ")
+        if dlg.restart:
+            self._restart(dlg.updated_to)
+
+    def _restart_args(self) -> list[str]:
+        """Folders opened this session plus loose files outside them, to reload after a restart."""
+        folders = sorted({f.resolve() for f in self._folders if f.is_dir()})
+        files = [e.path for e in self.ws.entries
+                 if Path(e.path).exists() and not any(Path(e.path).resolve().is_relative_to(f) for f in folders)]
+        return [str(p) for p in [*folders, *files]]
+
+    def _restart(self, version: str | None):
+        self._save_prefs()
+        ok = QProcess.startDetached(sys.executable, ["-m", "porometry", *self._restart_args()])[0]
+        if ok:
+            self.close()
+        else:
+            QMessageBox.information(self, "Updated", f"Updated to version {version}. Close the app and start it "
+                                    "again to use the new version.")

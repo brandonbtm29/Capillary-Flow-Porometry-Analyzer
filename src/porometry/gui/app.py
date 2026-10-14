@@ -29,7 +29,7 @@ def main(argv: list[str] | None = None) -> int:
     res = Path(__file__).parent / "resources"
     icon = QIcon(str(res / "porometry.ico")) if (res / "porometry.ico").exists() else QIcon(str(res / "porometry_256.png"))
     app.setWindowIcon(icon)
-    win = MainWindow()
+    win = MainWindow(check_updates=True)
     if len(argv) > 1:  # files or folders given on the command line / dropped on the shortcut
         win.load_paths(argv[1:])
     win.show()

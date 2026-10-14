@@ -33,11 +33,12 @@ python tools/caprep_check.py         # re-check against CapRep's own reports (ne
 | `analysis.py` | CapRep math -> `Analysis` (BP, MFP, smallest pore, CFF, PSD point-by-point / binned) |
 | `qc.py` | data-quality checks -> `QCReport` (pass/info/warn/fail); uses the raw CFF (`Analysis.cff_raw`) |
 | `workspace.py` | loaded runs, stable colours, duplicate grouping (auto + manual overrides), archive/restore, summary/group tables |
+| `updater.py` | latest `vX.Y.Z` tag from the GitHub API + CHANGELOG notes; `apply_update()` = `git fetch` + `merge --ff-only origin/main`, `pip install -e .` only if `pyproject.toml` changed; refuses dirty tree / other branch |
 | `archive.py` | move a `.CFT` into `Archive/` next to it + `archive_log.csv`; `list_archived()`, `restore_file()`; folders named `Archive` are skipped by `Workspace.add_folder` |
 | `export.py` | Excel (Summary, Groups, QC, one sheet per run) / CSV, figures |
 | `figures.py` | matplotlib drawing shared by GUI and export; colour-blind-checked palette, never cycled past 8; axis titles 14 pt, ticks 12 pt |
 | `slides.py` | `write_deck()`: 16:9 PowerPoint (title, tables, one slide per figure) via python-pptx; used by the notebook's last cell and `compare_conditions.py` |
-| `gui/` | `main_window.py` (tree of runs, 3 plot tabs, run + group tables, settings dialog), `archive_dialog.py` |
+| `gui/` | `main_window.py` (tree of runs, 3 plot tabs, run + group tables, settings dialog), `archive_dialog.py`, `update_dialog.py` (also the `Worker` QThread helper) |
 | `tools/caprep_check.py` | compares `analyze()` with every CapRep `.xls` report found next to its `.CFT` |
 
 ## Verified against CapRep (do not "fix" these without new evidence)
@@ -61,6 +62,7 @@ Checked on 12 Oct 2026 against 311 CapRep reports in `C:\CFP-1500AEX\StudentData
 - Semantic versioning, **MAJOR.MINOR.PATCH**; below 1.0 a minor bump = new feature or visible behaviour change, a patch bump = bug fix only. Started 13 Oct 2026 (0.1.0 = first public version, 0.2.0 = rename + archive).
 - The version lives in **one place**: `__version__` in `src/porometry/__init__.py` (pyproject reads it via `[tool.setuptools.dynamic]`). It shows in the window title and status bar.
 - For every change Brandon will use: bump `__version__`, add a dated entry at the top of `CHANGELOG.md` (Added / Changed / Fixed, written for Brandon, not for programmers), commit, then tag `vX.Y.Z` and push the tag (`git push origin main --tags`).
+- **The app's Update button only sees pushed `vX.Y.Z` tags** (GitHub tags API), and updates by fast-forwarding `main`. So: tag only commits on `main`, never move or delete a pushed tag, never force-push `main`. `MainWindow(check_updates=True)` only from `gui/app.py`; tests construct it without, so they never hit the network.
 
 ## Decisions made with Brandon
 
@@ -68,6 +70,7 @@ Checked on 12 Oct 2026 against 311 CapRep reports in `C:\CFP-1500AEX\StudentData
 - Duplicates: automatic grouping by file name (strip `_TEST#`, then `_S#`), plus manual "Mark as duplicates", "Not duplicates" and "Reset" (stored in QSettings `group_overrides`). Group stats = mean +- SD. QC fails are never averaged; warns are, unless turned off in Settings.
 - Runs that fail QC still plot, dashed and labelled `[QC fail]`.
 - **Archive** (13 Oct 2026) moves files into `Archive/` next to them (never deletes) and logs date, QC and reason; **Remove from list** only affects the current session.
+- **Update button** (13 Oct 2026, v0.3.0): checks GitHub on start-up (QSettings `check_updates`, on by default), shows a link in the status bar, never updates without a click; update = git fast-forward + restart with the same runs.
 - Name: **Capillary Flow Porometry Analyzer** (13 Oct 2026), to avoid confusion with other porometry techniques.
 - Analysis settings are stored in QSettings key `analysis_v2` (the old `analysis` key held the pre-check smallest-pore level and is ignored).
 - Public repo, MIT license; data in SyncThing (12 Oct 2026).

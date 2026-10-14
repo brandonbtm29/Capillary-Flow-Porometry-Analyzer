@@ -68,8 +68,21 @@ pytest               # tests
 
    **Export figure** saves the current plot, or all three plots stacked in one figure.
 
+6. **Archive…** moves bad or practice runs into an `Archive` folder next to them, with a reason logged in
+   `Archive/archive_log.csv`. They stop loading with the folder; **Archived runs…** brings them back.
+   **Remove from list** only hides a run for this session.
+
 A run that fails QC is still plotted, drawn dashed and labelled `[QC fail]`, so you can see what went
 wrong.
+
+### Updating
+
+The version you have is in the bottom-right corner. The app checks GitHub when it starts; when a newer
+version exists, that corner turns into a link (*v0.3.0 → v0.4.0 available*). Click it, or **Update…** in
+the toolbar, to see what's new and **Update and restart**. The update pulls the new version into this
+folder (`git pull`), reinstalls dependencies if they changed, and reopens the runs you had loaded. Your data
+and settings are not touched. It needs git, and it won't run if files in the app folder have local changes.
+Turn off the start-up check in the same window. What changed in each version is in `CHANGELOG.md`.
 
 ## Comparing runs in a notebook
 
@@ -158,6 +171,8 @@ src/porometry/
   analysis.py   CapRep calculations
   qc.py         data quality checks
   workspace.py  loaded runs, grouping, summary tables
+  archive.py    move runs to Archive/ and back
+  updater.py    check GitHub for a newer version, update the git clone
   export.py     Excel / CSV / figure export
   figures.py    matplotlib plots (shared by app and exports)
   slides.py     PowerPoint export (write_deck)
