@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import html
-from typing import Callable
+from collections.abc import Callable
 
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtWidgets import (
-    QCheckBox, QDialog, QDialogButtonBox, QLabel, QPushButton, QTextBrowser, QVBoxLayout,
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QLabel,
+    QPushButton,
+    QTextBrowser,
+    QVBoxLayout,
 )
 
 from .. import updater

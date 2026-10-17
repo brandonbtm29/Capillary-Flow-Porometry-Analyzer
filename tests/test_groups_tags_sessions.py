@@ -5,14 +5,13 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from _synth import write_run  # noqa: E402
 
 from porometry import groups as G
 from porometry.figures import PlotOptions, make_figure, palette_colors
 from porometry.qc import Level
 from porometry.tags import SIDECAR, MemoryTags, SidecarTags, auto_tags, sort_key
 from porometry.workspace import RUN, Workspace
-
-from _synth import write_run  # noqa: E402
 
 
 def loaded(folder, **kw) -> Workspace:
@@ -213,6 +212,7 @@ def test_limits_legend_and_fonts(speeds):
 
 def test_excel_has_statistics(speeds, tmp_path):
     import openpyxl
+
     from porometry.export import save_figure, write_summary
     ws = loaded(speeds)
     wb = openpyxl.load_workbook(write_summary(ws, tmp_path / "s.xlsx"))

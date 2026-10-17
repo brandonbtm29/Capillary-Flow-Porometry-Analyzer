@@ -143,6 +143,7 @@ so the same session opens on the Mac and the PC.
 
 ### Other
 
+- **Error log**: errors, with tracebacks (also from background threads), go to `%LOCALAPPDATA%\PorometryAnalyzer\logs\porometry.log` on Windows (`~/Library/Logs/PorometryAnalyzer/porometry.log` on macOS). An unexpected error is shown in a dialog and the app keeps running instead of closing. A hard crash (e.g. in a driver) leaves a `.fatal.log` next to it.
 - **Archive…** moves bad or practice runs into an `Archive` folder next to them, with a reason logged in
   `Archive/archive_log.csv`. They stop loading with the folder; **Archived runs…** brings them back.
   **Remove from list** only hides a run for this session.

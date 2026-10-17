@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import io
 import math
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Iterable, Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -23,7 +23,7 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Emu, Inches, Pt
 
-FigureLike = Union[Figure, str, Path]
+FigureLike = Figure | str | Path
 
 INK = RGBColor(0x1F, 0x2A, 0x33)  # charcoal: title slide background, headings
 INK2 = RGBColor(0x55, 0x5E, 0x66)  # captions
@@ -115,7 +115,7 @@ def _column_formatter(col: pd.Series):
     else:
         typical = float(np.median(np.abs(finite[finite != 0]))) if (finite != 0).any() else 1.0
         dec = int(min(3, max(0, 2 - math.floor(math.log10(typical)))))
-        fmt = "{:,.%df}" % dec
+        fmt = f"{{:,.{dec}f}}"
     return lambda v: "-" if v is None or (isinstance(v, float) and math.isnan(v)) else fmt.format(float(v))
 
 
@@ -184,7 +184,7 @@ def _figure_slide(prs, title: str, fig: FigureLike, caption: str = "") -> None:
         _text(s, MARGIN, BODY_TOP + h + Inches(0.15), W - 2 * MARGIN, CAPTION_H, caption, 13, color=INK2)
 
 
-def write_deck(path: Union[str, Path], title: str, subtitle: str = "",
+def write_deck(path: str | Path, title: str, subtitle: str = "",
                tables: Iterable[Sequence] = (), figures: Iterable[Sequence] = (), footer: str = "") -> Path:
     """Write a 16:9 PowerPoint deck.
 

@@ -39,7 +39,7 @@ def parse_blocks(xls):
     """Yield dicts, one per CapRep report block (one data file each)."""
     try:
         book = xlrd.open_workbook(str(xls), on_demand=True)
-    except Exception as e:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         return
     for sh in book.sheets():
         rows = [sh.row_values(r) for r in range(sh.nrows)]

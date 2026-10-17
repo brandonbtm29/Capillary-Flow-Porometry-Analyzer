@@ -10,6 +10,14 @@ Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**
 Each release is tagged `vX.Y.Z` on GitHub. The version shows in the window title and the bottom-right corner
 of the app.
 
+## Unreleased
+
+- **Error log**: errors, with tracebacks (also from background threads), go to
+  `%LOCALAPPDATA%\PorometryAnalyzer\logs\porometry.log` (macOS: `~/Library/Logs/PorometryAnalyzer/`).
+  An unexpected error is shown in a dialog and the app keeps running instead of closing.
+- GitHub Actions CI (tests on Windows, Linux and macOS, ruff), Dependabot, and ruff settings in
+  `pyproject.toml`; imports sorted and a few old-style annotations modernised by ruff.
+
 ## 0.5.1 - 2026-10-14
 
 ### Fixed

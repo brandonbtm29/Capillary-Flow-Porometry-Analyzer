@@ -14,10 +14,32 @@ from matplotlib.figure import Figure
 from PyQt6.QtCore import QByteArray, QProcess, QSettings, QSortFilterProxyModel, Qt, QTimer, QUrl
 from PyQt6.QtGui import QAction, QActionGroup, QDesktopServices, QFont, QKeySequence
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QDialog, QDockWidget, QFileDialog, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
-    QListWidget, QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPushButton, QSplitter, QStyle,
-    QStyledItemDelegate, QTableView, QTabWidget, QTextBrowser, QToolBar, QToolButton, QTreeWidget, QTreeWidgetItem,
-    QVBoxLayout, QWidget,
+    QAbstractItemView,
+    QDialog,
+    QDockWidget,
+    QFileDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSplitter,
+    QStyle,
+    QStyledItemDelegate,
+    QTableView,
+    QTabWidget,
+    QTextBrowser,
+    QToolBar,
+    QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
 from .. import __version__, session, shortcuts, updater
@@ -84,7 +106,7 @@ class PlotPanel(QWidget):
 class TagDelegate(QStyledItemDelegate):
     """Only tag cells of run rows can be edited (not the run name, the QC column or group rows)."""
 
-    def __init__(self, window: "MainWindow"):
+    def __init__(self, window: MainWindow):
         super().__init__(window)
         self.window = window
 
@@ -142,7 +164,7 @@ or select several and use *Runs > Set field*. Add your own fields (e.g. Membrane
 class GroupList(QListWidget):
     """The groups panel. Runs dragged here from the run list are added to the group they're dropped on."""
 
-    def __init__(self, window: "MainWindow"):
+    def __init__(self, window: MainWindow):
         super().__init__()
         self.window = window
         self.setAcceptDrops(True)

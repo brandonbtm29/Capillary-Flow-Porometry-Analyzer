@@ -17,9 +17,9 @@ import ssl
 import subprocess
 import sys
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from . import __version__
 
@@ -80,7 +80,7 @@ def _ssl_context() -> ssl.SSLContext:
 
 
 def _fetch(url: str, timeout: float) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": f"capillary-flow-porometry-analyzer/{__version__}",
+    req = urllib.request.Request(url, headers={"User-Agent": f"capillary-flow-porometry-analyzer/{__version__}",  # noqa: S310
                                                "Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as r:  # noqa: S310 (fixed URLs)
         return r.read().decode("utf-8")

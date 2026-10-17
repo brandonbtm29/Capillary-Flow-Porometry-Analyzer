@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "ruff>=0.17,<0.18"]
 notebook = ["jupyterlab>=4", "ipykernel>=6"]
 validate = ["xlrd>=2"]  # tools/caprep_check.py reads CapRep's .xls exports
 
@@ -43,3 +43,21 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = [
+    "E501",  # long lines: wrap them when touching that code
+    "E702",  # `a = 1; b = 2` on one line is the existing style in tools/ and the notebooks
+    "B905",  # zip() without strict=: lengths are checked where it matters
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S603", "S607"]  # asserts; tests run git and the app itself
+"src/porometry/updater.py" = ["S603", "S607"]  # runs git and pip with fixed arguments
+"src/porometry/shortcuts.py" = ["S603", "S607"]  # runs powershell with fixed arguments
+"src/porometry/gui/models.py" = ["B008"]  # QModelIndex() default argument is the Qt idiom

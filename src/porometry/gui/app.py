@@ -6,19 +6,27 @@ import sys
 
 
 def main(argv: list[str] | None = None) -> int:
-    from PyQt6.QtWidgets import QApplication
+    from .. import __version__, crash_log
 
-    from .main_window import MainWindow
+    # Errors go to a per-user log folder (the app has no data folder of its own):
+    # %LOCALAPPDATA%\PorometryAnalyzer\logs on Windows, ~/Library/Logs/PorometryAnalyzer on macOS.
+    crash_log.setup("porometry", crash_log.user_log_dir("PorometryAnalyzer"), __version__)
 
     from pathlib import Path
 
     from PyQt6.QtGui import QIcon
+    from PyQt6.QtWidgets import QApplication
+
+    from .main_window import MainWindow
 
     if sys.platform == "win32":
         # own taskbar entry and icon instead of Python's
         try:
             import ctypes
-            from ..shortcuts import APP_ID  # the shortcuts carry the same ID, so a pinned icon and the window are one button
+
+            from ..shortcuts import (
+                APP_ID,  # the shortcuts carry the same ID, so a pinned icon and the window are one button
+            )
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
         except (AttributeError, OSError):
             pass

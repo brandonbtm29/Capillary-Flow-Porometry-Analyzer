@@ -1,13 +1,12 @@
 import numpy as np
 import pytest
+from _data import DATA, EXPECTED, needs_data
 
 from porometry.analysis import Settings, analyze
 from porometry.cft import PSI_TO_KPA, read_cft
 from porometry.export import run_table, save_figure, write_summary
 from porometry.qc import check
 from porometry.workspace import Workspace
-
-from _data import DATA, EXPECTED, needs_data
 
 pytestmark = needs_data  # real lab files, kept in SyncThing (see tests/_data.py)
 GOOD = DATA / "CFP-0_25MM_MIN_TEST1.CFT"  # 10-08-2026, no support mesh

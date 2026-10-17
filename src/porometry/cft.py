@@ -58,7 +58,7 @@ class Curve:
         return len(self.flow)
 
     @classmethod
-    def from_pairs(cls, pairs: list[tuple[float, float]]) -> "Curve":
+    def from_pairs(cls, pairs: list[tuple[float, float]]) -> Curve:
         if not pairs:
             return cls(np.array([]), np.array([]))
         arr = np.array(pairs, dtype=float)
