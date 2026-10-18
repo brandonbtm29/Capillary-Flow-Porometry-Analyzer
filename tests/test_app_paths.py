@@ -1,6 +1,7 @@
 """Settings files: app folder by default, a chosen settings folder, and the one-time copy from Qt's old store."""
 
 import json
+from pathlib import Path
 
 import pytest
 from PyQt6.QtCore import QByteArray, QSettings
@@ -58,7 +59,7 @@ def test_settings_folder_pointer(folders):
     assert app_paths.settings_dir() == str(data / "Settings")
     assert shared.fileName().endswith(app_paths.SETTINGS_FILE)
     assert (data / "Settings" / app_paths.SETTINGS_FILE).exists()
-    assert local.fileName() == str(app / app_paths.LOCAL_FILE)  # per-computer state stays put
+    assert Path(local.fileName()) == app / app_paths.LOCAL_FILE  # per-computer state stays put (Qt uses / on Windows)
 
 
 def test_synced_settings_are_not_overwritten(folders):
