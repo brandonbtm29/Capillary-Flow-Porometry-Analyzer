@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import html
 import json
-import os
 import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
-from PyQt6.QtCore import QByteArray, QProcess, QSettings, QSortFilterProxyModel, Qt, QTimer, QUrl
+from PyQt6.QtCore import QByteArray, QProcess, QSortFilterProxyModel, Qt, QTimer, QUrl
 from PyQt6.QtGui import QAction, QActionGroup, QDesktopServices, QFont, QKeySequence
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -42,7 +41,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from .. import __version__, session, shortcuts, updater
+from .. import __version__, app_paths, session, shortcuts, updater
 from ..analysis import Settings
 from ..archive import ArchiveError, list_archived
 from ..cft import PSI_TO_KPA
@@ -65,15 +64,6 @@ PLOTS = [("flow", "Flow vs pressure"), ("cff", "Cumulative filter flow"), ("psd"
 REPO_URL = "https://github.com/" + updater.REPO
 MAX_RECENT = 8
 MAX_RECENT_FOLDERS = 10
-SETTINGS_ENV = "POROMETRY_SETTINGS_FILE"  # tests point this at a temporary file
-
-
-def app_settings() -> QSettings:
-    """The app's saved settings (registry on Windows, a plist on macOS), or a test file."""
-    path = os.environ.get(SETTINGS_ENV)
-    if path:
-        return QSettings(path, QSettings.Format.IniFormat)
-    return QSettings("PorometryAnalyzer", "PorometryAnalyzer")
 
 
 class SortProxy(QSortFilterProxyModel):
@@ -201,7 +191,8 @@ class MainWindow(QMainWindow):
         apply_style()
         self.resize(1500, 920)
         self.setAcceptDrops(True)
-        self.qs = app_settings()
+        # shared settings (settings folder) and this computer's window/recent-folder state (app folder)
+        self.qs, self.local = app_paths.open_settings()
         self.ws = Workspace()
         self.group_include_warn = True
         self.highlight: str | None = None
@@ -524,10 +515,10 @@ class MainWindow(QMainWindow):
         self.version_label.mousePressEvent = lambda _ev: self.show_updates()
         self.statusBar().addPermanentWidget(self.version_label)
 
-        geo = self.qs.value("geometry")
+        geo = self.local.value("geometry")
         if isinstance(geo, QByteArray):
             self.restoreGeometry(geo)
-        state = self.qs.value("window_state_v2")
+        state = self.local.value("window_state_v2")
         if isinstance(state, QByteArray):
             self.restoreState(state)
         self._rebuild_recent()
@@ -592,8 +583,10 @@ class MainWindow(QMainWindow):
             "group_views": self.ws.group_views}))
         self.qs.setValue("group_overrides", json.dumps(self.ws.legacy_groups))
         self.qs.setValue("export_v1", json.dumps(self.export_prefs))
-        self.qs.setValue("geometry", self.saveGeometry())
-        self.qs.setValue("window_state_v2", self.saveState())
+        self.local.setValue("geometry", self.saveGeometry())
+        self.local.setValue("window_state_v2", self.saveState())
+        self.qs.sync()
+        self.local.sync()
 
     def closeEvent(self, ev):
         self._save_prefs()
@@ -605,7 +598,7 @@ class MainWindow(QMainWindow):
 
     # ================================================================== loading
     def _last_dir(self) -> str:
-        return self.qs.value("last_dir", "C:/CFP-1500AEX/StudentData" if Path("C:/CFP-1500AEX").exists() else str(Path.home()))
+        return self.local.value("last_dir", "C:/CFP-1500AEX/StudentData" if Path("C:/CFP-1500AEX").exists() else str(Path.home()))
 
     def open_folder(self):
         d = QFileDialog.getExistingDirectory(self, "Open folder of .CFT files", self._last_dir())
@@ -618,7 +611,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Open folder", f"{d} is not there any more (moved or renamed?).")
             self._forget_recent_folder(d)
             return
-        self.qs.setValue("last_dir", str(d))
+        self.local.setValue("last_dir", str(d))
         self._folders.add(d)
         self._remember_folder(d)
         self._load(lambda: self.ws.add_folder(d))
@@ -626,19 +619,19 @@ class MainWindow(QMainWindow):
     # ---- recent folders: kept per computer (paths differ between the Mac and the PC)
     def _recent_folders(self) -> list[str]:
         try:
-            return [p for p in json.loads(self.qs.value("recent_folders", "[]") or "[]") if isinstance(p, str)]
+            return [p for p in json.loads(self.local.value("recent_folders", "[]") or "[]") if isinstance(p, str)]
         except (TypeError, json.JSONDecodeError):
             return []
 
     def _remember_folder(self, d: Path):
         d = str(Path(d).resolve())
         recent = [p for p in self._recent_folders() if p != d]
-        self.qs.setValue("recent_folders", json.dumps([d, *recent][:MAX_RECENT_FOLDERS]))
+        self.local.setValue("recent_folders", json.dumps([d, *recent][:MAX_RECENT_FOLDERS]))
         self._rebuild_recent_folders()
 
     def _forget_recent_folder(self, d: Path):
         d = str(Path(d).resolve())
-        self.qs.setValue("recent_folders", json.dumps([p for p in self._recent_folders() if p != d]))
+        self.local.setValue("recent_folders", json.dumps([p for p in self._recent_folders() if p != d]))
         self._rebuild_recent_folders()
 
     def _rebuild_recent_folders(self):
@@ -659,14 +652,14 @@ class MainWindow(QMainWindow):
             m.addAction("No recent folders yet").setEnabled(False)
 
     def _clear_recent_folders(self):
-        self.qs.setValue("recent_folders", "[]")
+        self.local.setValue("recent_folders", "[]")
         self._rebuild_recent_folders()
 
     def add_files(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Add .CFT files", self._last_dir(),
                                                 "CapWin data (*.cft *.CFT);;All files (*)")
         if files:
-            self.qs.setValue("last_dir", str(Path(files[0]).parent))
+            self.local.setValue("last_dir", str(Path(files[0]).parent))
             self._load(lambda: self.ws.add_files(files))
 
     def load_paths(self, paths):
@@ -784,18 +777,18 @@ class MainWindow(QMainWindow):
 
     def _remember_recent(self, path: Path):
         try:
-            recent = json.loads(self.qs.value("recent_sessions", "[]") or "[]")
+            recent = json.loads(self.local.value("recent_sessions", "[]") or "[]")
         except (TypeError, json.JSONDecodeError):
             recent = []
         recent = [p for p in recent if p != str(path)]
         recent.insert(0, str(path))
-        self.qs.setValue("recent_sessions", json.dumps(recent[:MAX_RECENT]))
+        self.local.setValue("recent_sessions", json.dumps(recent[:MAX_RECENT]))
         self._rebuild_recent()
 
     def _rebuild_recent(self):
         self.recent_menu.clear()
         try:
-            recent = json.loads(self.qs.value("recent_sessions", "[]") or "[]")
+            recent = json.loads(self.local.value("recent_sessions", "[]") or "[]")
         except (TypeError, json.JSONDecodeError):
             recent = []
         for p in recent:
@@ -1173,12 +1166,15 @@ class MainWindow(QMainWindow):
 
     # ================================================================== settings, icon, help
     def open_settings(self):
-        dlg = SettingsDialog(self.ws.settings, self.ws.qc_settings, self.group_include_warn, self)
+        dlg = SettingsDialog(self.ws.settings, self.ws.qc_settings, self.group_include_warn, self,
+                             save_prefs=self._save_prefs)
         if dlg.exec():
             self.ws.settings, self.ws.qc_settings, self.group_include_warn = dlg.values()
             self.ws.reanalyze()
             self._save_prefs()
             self._refresh_all()
+        elif dlg.restart_requested:  # the settings folder changed and the user chose to restart
+            self._restart(None)
 
     def make_app_icon(self):
         try:
@@ -1529,10 +1525,14 @@ class MainWindow(QMainWindow):
         return [str(p) for p in [*folders, *files]]
 
     def _restart(self, version: str | None):
+        """Start a new copy with the same runs and close this one (after an update or a settings folder change)."""
         self._save_prefs()
         ok = QProcess.startDetached(sys.executable, ["-m", "porometry", *self._restart_args()])[0]
         if ok:
             self.close()
+        elif version is None:
+            QMessageBox.information(self, "Restart", "Couldn't restart automatically. Close the app and start it "
+                                    "again to use the new settings folder.")
         else:
             QMessageBox.information(self, "Updated", f"Updated to version {version}. Close the app and start it "
                                     "again to use the new version.")

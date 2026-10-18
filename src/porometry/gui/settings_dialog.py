@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from .. import shortcuts
+from .. import app_paths, shortcuts
 from ..analysis import Settings
 from ..qc import QCSettings
 
@@ -46,8 +46,10 @@ def _ispin(value, lo, hi):
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, settings: Settings, qc: QCSettings, group_include_warn: bool, parent=None):
+    def __init__(self, settings: Settings, qc: QCSettings, group_include_warn: bool, parent=None,
+                 save_prefs=None):
         super().__init__(parent)
+        self.restart_requested = False
         self.setWindowTitle("Settings")
         self.setMinimumWidth(460)
         lay = QVBoxLayout(self)
@@ -115,6 +117,13 @@ class SettingsDialog(QDialog):
         row.addWidget(self.icon_btn)
         lay.addWidget(box)
 
+        # --- where settings are kept
+        lay.addWidget(app_paths.folder_box(save_cb=save_prefs, restart_cb=self._restart_now, parent=self))
+        note = QLabel("Window layout and recent folders always stay on this computer.")
+        note.setWordWrap(True)
+        note.setStyleSheet("color: gray;")
+        lay.addWidget(note)
+
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         reset = QPushButton("Reset to defaults")
         btns.addButton(reset, QDialogButtonBox.ButtonRole.ResetRole)
@@ -123,6 +132,11 @@ class SettingsDialog(QDialog):
         btns.rejected.connect(self.reject)
         lay.addWidget(btns)
         self._base_qc = qc
+
+    def _restart_now(self):
+        """Close without applying the other fields; the main window then restarts the app."""
+        self.restart_requested = True
+        self.reject()
 
     def _make_icon(self):
         self.setCursor(Qt.CursorShape.WaitCursor)

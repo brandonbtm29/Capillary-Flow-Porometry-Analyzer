@@ -10,11 +10,21 @@ Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**
 Each release is tagged `vX.Y.Z` on GitHub. The version shows in the window title and the bottom-right corner
 of the app.
 
-## Unreleased
+## 0.6.0 - 2026-10-17
 
+### Added
+- **Settings Folder** in Settings, like the other UAkron lab apps: point `porometry_settings.ini` at a
+  folder in SyncThing to share it between the Mac and the PC. Window layout and recent folders always stay
+  on each computer.
 - **Error log**: errors, with tracebacks (also from background threads), go to
   `%LOCALAPPDATA%\PorometryAnalyzer\logs\porometry.log` (macOS: `~/Library/Logs/PorometryAnalyzer/`).
   An unexpected error is shown in a dialog and the app keeps running instead of closing.
+
+### Changed
+- **Settings are now files in the app folder** instead of the registry (Windows) or a plist (macOS):
+  `porometry_settings.ini` (analysis, QC, plot options, views, export choices) and `porometry_local.ini`
+  (window layout, last folder, recent folders and sessions). Your existing settings are copied over the
+  first time this version starts; the old copy is left alone.
 - GitHub Actions CI (tests on Windows, Linux and macOS, ruff), Dependabot, and ruff settings in
   `pyproject.toml`; imports sorted and a few old-style annotations modernised by ruff.
 

@@ -141,6 +141,24 @@ so the same session opens on the Mac and the PC.
 - **Copy figure** (Ctrl+Shift+C) puts the current plot on the clipboard at the last export size, ready to
   paste into Word or PowerPoint.
 
+### Where settings are saved
+
+Settings are saved as files in the app's own folder (the folder you cloned), not in the registry or a
+macOS plist:
+
+- `porometry_settings.ini`: analysis and QC settings, plot options, views, colours, export choices.
+- `porometry_local.ini`: window size and layout, last folder, recent folders and sessions. This one always
+  stays in the app folder, because those paths differ between computers.
+
+To share the first file between the Mac and the PC, open **Settings > Settings Folder > Change...** and pick a
+folder in SyncThing, e.g. `UAkron Playground/Capillary Flow Porometer/Settings`. The app copies your
+current settings there and asks to restart. On the second computer, choose the same folder: it uses the
+settings already there instead of overwriting them. **Use Default** goes back to the app folder. The
+`UAKRON_SETTINGS_DIR` environment variable overrides the choice. Both files are ignored by git.
+
+Settings from versions before 0.6 (kept in the registry / plist) are copied over the first time the new
+version starts. The old copy is left untouched.
+
 ### Other
 
 - **Error log**: errors, with tracebacks (also from background threads), go to `%LOCALAPPDATA%\PorometryAnalyzer\logs\porometry.log` on Windows (`~/Library/Logs/PorometryAnalyzer/porometry.log` on macOS). An unexpected error is shown in a dialog and the app keeps running instead of closing. A hard crash (e.g. in a driver) leaves a `.fatal.log` next to it.
@@ -250,6 +268,8 @@ src/porometry/
   workspace.py  loaded runs, grouping, summary tables
   archive.py    move runs to Archive/ and back
   tags.py       run tags from file names + run_tags.csv next to the data
+  app_paths.py  where the settings files are (app folder or the chosen settings folder)
+  settings_location.py  Settings Folder option, same copy as in the other UAkron apps
   groups.py     group mean curves, compare metrics, t-test / ANOVA / Tukey
   session.py    save / open .cfpa sessions
   updater.py    check GitHub for a newer version, update the git clone

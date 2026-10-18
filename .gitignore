@@ -18,6 +18,11 @@ tests/data/
 *.pptx
 Report/
 
+# App settings: per machine, or in the settings folder chosen in the app (see app_paths.py)
+porometry_settings.ini
+porometry_local.ini
+settings_location.json
+
 # Scratch work and Claude Code personal files
 scratch/
 CLAUDE.local.md

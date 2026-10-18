@@ -61,3 +61,4 @@ ignore = [
 "src/porometry/updater.py" = ["S603", "S607"]  # runs git and pip with fixed arguments
 "src/porometry/shortcuts.py" = ["S603", "S607"]  # runs powershell with fixed arguments
 "src/porometry/gui/models.py" = ["B008"]  # QModelIndex() default argument is the Qt idiom
+"src/porometry/settings_location.py" = ["I001", "S110"]  # shared byte-identical copy with the other UAkron apps
