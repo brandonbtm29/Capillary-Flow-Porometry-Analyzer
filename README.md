@@ -22,7 +22,9 @@ so a synced copy never carries it).
 ### macOS
 
 Double-click **`Capillary Flow Porometry Analyzer.command`** for the app, or **`Open Notebook.command`** for the
-comparison notebook. The first launch sets everything up in `~/.venvs/porometry-analyzer`. If the files
+comparison notebook. The first launch sets everything up in `~/.venvs/porometry-analyzer`. The app's
+launcher then starts the app and closes its Terminal window (the notebook's stays open while JupyterLab
+runs). If the files
 won't run (a copy synced from Windows loses the "executable" flag), run `chmod +x *.command` once in
 Terminal in this folder. If macOS blocks them, right-click and choose Open. You need Python 3.10+ (`brew install python`, or python.org).
 
@@ -37,6 +39,10 @@ You need Python 3.10 or newer ([python.org](https://www.python.org/downloads/); 
 
 **Easiest:** double-click `Capillary Flow Porometry Analyzer.bat`. The first launch creates a private Python
 environment in `.venv` and installs the dependencies (about a minute). Later launches open straight away.
+
+On both systems, if the app can't start (for example its Python packages are broken), the launcher's
+window stays open with the error and says how to reinstall them. Only one copy of the app runs at a time:
+opening it again brings the open window to the front.
 
 The first launch also puts a **Capillary Flow Porometry Analyzer** icon on the Desktop and in the Start
 menu. To keep it on the taskbar, right-click the Start menu entry and choose *Pin to taskbar*. The pinned
@@ -162,6 +168,11 @@ version starts. The old copy is left untouched.
 ### Other
 
 - **Error log**: errors, with tracebacks (also from background threads), go to `%LOCALAPPDATA%\PorometryAnalyzer\logs\porometry.log` on Windows (`~/Library/Logs/PorometryAnalyzer/porometry.log` on macOS). An unexpected error is shown in a dialog and the app keeps running instead of closing. A hard crash (e.g. in a driver) leaves a `.fatal.log` next to it.
+- **Reporting a problem**: *Settings > App > Copy Diagnostics* copies the app version, this computer's
+  details, where the app and its settings are, and the end of the error log. Paste it into a GitHub issue
+  or an email (your home folder shows as `~`, and anything that looks like a password is blanked).
+  **Open Log Folder** next to it shows the log files. **Restart App** closes the app and opens it again
+  with the same runs loaded.
 - **Archive…** moves bad or practice runs into an `Archive` folder next to them, with a reason logged in
   `Archive/archive_log.csv`. They stop loading with the folder; **Archived runs…** brings them back.
   **Remove from list** only hides a run for this session.
@@ -172,12 +183,16 @@ version starts. The old copy is left untouched.
 
 ### Updating
 
-The version you have is in the bottom-right corner. The app checks GitHub when it starts; when a newer
-version exists, that corner turns into a link (*v0.4.0 → v0.5.0 available*). Click it, the **Update**
-button on the toolbar, or *Help > Check for updates*, to see what's new and **Update and restart**. The update pulls the new version into this
-folder (`git pull`), reinstalls dependencies if they changed, and reopens the runs you had loaded. Your data
-and settings are not touched. It needs git, and it won't run if files in the app folder have local changes.
-Turn off the start-up check in the same window. What changed in each version is in `CHANGELOG.md`.
+The version you have is in the bottom-right corner. The app checks GitHub for the latest **release** when
+it starts; when a newer one exists, that corner turns into a link (*v0.4.0 → v0.5.0 available*). Click it,
+the **Update** button on the toolbar, *Help > Check for updates* or *Settings > App > Check for updates…*
+to see the release notes and **Update and restart**. The update moves this folder to that release
+(`git fetch --tags`, then a fast-forward to its tag; unreleased work on `main` is never pulled in),
+reinstalls dependencies only if they changed, and reopens the runs you had loaded. If reinstalling fails,
+takes too long or you press **Cancel update**, the folder goes back to the version you had. Your data and
+settings are not touched. It needs git, and it won't run if files in the app folder have local changes (it
+says which). A copy downloaded as a ZIP can't update itself: use **Open release page** to download the new
+version. Turn off the start-up check in the same window. What changed in each version is in `CHANGELOG.md`.
 
 ## Comparing runs in a notebook
 
@@ -272,7 +287,9 @@ src/porometry/
   settings_location.py  Settings Folder option, same copy as in the other UAkron apps
   groups.py     group mean curves, compare metrics, t-test / ANOVA / Tukey
   session.py    save / open .cfpa sessions
-  updater.py    check GitHub for a newer version, update the git clone
+  updater.py    check GitHub for the latest release, move the git clone to its tag
+  single_instance.py  one copy at a time, same copy as in the other UAkron apps
+  diagnostics.py      Open Log Folder / Copy Diagnostics, same copy as in the other UAkron apps
   shortcuts.py  app icon: Windows shortcuts, macOS .app bundle, Linux .desktop entry
   export.py     Excel / CSV / figure export
   figures.py    matplotlib plots (shared by app and exports)

@@ -17,6 +17,17 @@ if not exist ".venv\Scripts\pythonw.exe" (
         exit /b 1
     )
 )
+rem Quick check that the app can start. If not, show why and keep this window open.
+".venv\Scripts\python.exe" -c "import PyQt6.QtWidgets, matplotlib, porometry" 2>nul
+if errorlevel 1 (
+    echo The app can't start: its Python packages are missing or broken.
+    echo.
+    ".venv\Scripts\python.exe" -c "import PyQt6.QtWidgets, matplotlib, porometry"
+    echo.
+    echo To reinstall them, delete the .venv folder in this folder and double-click this file again.
+    pause
+    exit /b 1
+)
 rem Desktop + Start menu icon, made once (Settings > Create app icon remakes it)
 if not exist ".venv\.shortcut-made" ".venv\Scripts\python.exe" -m porometry.shortcuts
 start "" ".venv\Scripts\pythonw.exe" -m porometry %*
