@@ -12,6 +12,8 @@ published releases). The version shows in the window title and the bottom-right 
 
 ## [Unreleased]
 
+## 0.7.0 - 2026-10-28
+
 ### Added
 - **Settings > App**: **Restart App** (closes the app and opens it again with the same runs loaded; an
   open session is saved first), **Check for updates…**, **Open Log Folder** and **Copy Diagnostics**.
