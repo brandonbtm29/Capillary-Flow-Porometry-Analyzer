@@ -7,8 +7,36 @@ Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**
 - **MAJOR**: 1.0.0 once the app is complete and trusted enough for the rest of the lab to use without help.
   After that, MAJOR goes up only for changes that break existing files, settings or workflows.
 
-Each release is tagged `vX.Y.Z` on GitHub. The version shows in the window title and the bottom-right corner
-of the app.
+Each release is tagged `vX.Y.Z` and published as a release on GitHub (the app's Update button only offers
+published releases). The version shows in the window title and the bottom-right corner of the app.
+
+## [Unreleased]
+
+### Added
+- **Settings > App**: **Restart App** (closes the app and opens it again with the same runs loaded; an
+  open session is saved first), **Check for updates…**, **Open Log Folder** and **Copy Diagnostics**.
+  Copy Diagnostics puts the app version, this computer's details, where the app and its settings are, and
+  the end of the error log on the clipboard, ready to paste into a GitHub issue or an email. Your home
+  folder is shortened to `~` and anything that looks like a password is blanked.
+- **Only one copy at a time.** Opening the app while it's already running brings the open window to the
+  front instead of starting a second copy. Files or folders dropped on the icon are then not opened:
+  drag them onto the open window instead.
+- **Cancel update** and **Open release page** in the Updates window.
+
+### Changed
+- **Updates follow GitHub releases, not the latest work on `main`.** The app only offers a version once
+  it is published as a release, and updating moves this folder to exactly that release (fast-forward to
+  its tag), so unfinished changes never reach the lab computer. "What's new" shows the release notes from
+  GitHub (or the CHANGELOG sections when a release has none). Dependencies are reinstalled only when the
+  release changed them; if that fails, takes over 10 minutes or is cancelled, the folder goes back to the
+  version you had. The update still refuses to run when the app's own files were edited, and says which.
+  A copy downloaded as a ZIP, or a computer without git, gets a link to the release page instead.
+  Updating never waits for a password and never opens a console window.
+- **macOS:** `Capillary Flow Porometry Analyzer.command` now starts the app in the background and closes
+  its Terminal window, instead of keeping Terminal open while the app runs. Files or folders given to it
+  are still opened. Errors go to the error log.
+- Both launchers check that the app can start before opening it. If its Python packages are broken, the
+  window stays open with the error and says how to reinstall them.
 
 ## 0.6.0 - 2026-10-17
 
