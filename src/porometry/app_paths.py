@@ -50,6 +50,12 @@ def settings_dir() -> str:
     return settings_location.resolve(app_dir(), data_dir())
 
 
+def current_settings_dir() -> str:
+    """Where the shared settings are right now (the folder of ``POROMETRY_SETTINGS_FILE`` when it is set)."""
+    test_file = os.environ.get(SETTINGS_ENV)
+    return os.path.dirname(os.path.abspath(test_file)) if test_file else settings_dir()
+
+
 def _native_store() -> QSettings:
     s = QSettings(*NATIVE)
     s.setFallbacksEnabled(False)  # macOS would otherwise add system-wide keys (trackpad, locale, ...)

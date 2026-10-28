@@ -1,4 +1,4 @@
-"""Settings dialog: analysis options, QC thresholds, grouping."""
+"""Settings dialog: analysis options, QC thresholds, grouping, the app (updates, restart, diagnostics)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from dataclasses import replace
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -22,7 +23,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from .. import app_paths, shortcuts
+from .. import __version__, app_paths, crash_log, diagnostics, shortcuts
 from ..analysis import Settings
 from ..qc import QCSettings
 
@@ -47,9 +48,12 @@ def _ispin(value, lo, hi):
 
 class SettingsDialog(QDialog):
     def __init__(self, settings: Settings, qc: QCSettings, group_include_warn: bool, parent=None,
-                 save_prefs=None):
+                 save_prefs=None, loaded_runs: int | None = None):
         super().__init__(parent)
-        self.restart_requested = False
+        self.restart_requested = False  # settings folder changed: restart without applying the other fields
+        self.restart_app_requested = False  # Restart App: apply the fields, then restart
+        self.updates_requested = False  # Check for updates: apply the fields, then open the Updates window
+        self.loaded_runs = loaded_runs
         self.setWindowTitle("Settings")
         self.setMinimumWidth(460)
         lay = QVBoxLayout(self)
@@ -117,6 +121,9 @@ class SettingsDialog(QDialog):
         row.addWidget(self.icon_btn)
         lay.addWidget(box)
 
+        # --- the app: updates, restart, help with problems
+        lay.addWidget(self._app_box())
+
         # --- where settings are kept
         lay.addWidget(app_paths.folder_box(save_cb=save_prefs, restart_cb=self._restart_now, parent=self))
         note = QLabel("Window layout and recent folders always stay on this computer.")
@@ -132,6 +139,62 @@ class SettingsDialog(QDialog):
         btns.rejected.connect(self.reject)
         lay.addWidget(btns)
         self._base_qc = qc
+
+    def _app_box(self) -> QGroupBox:
+        box = QGroupBox("App")
+        v = QVBoxLayout(box)
+        v.addWidget(QLabel(f"You are running {shortcuts.APP_NAME} <b>{__version__}</b>."))
+        row = QHBoxLayout()
+        self.updates_btn = QPushButton("Check for updates…")
+        self.updates_btn.setToolTip("Look for a newer release on GitHub. Whether the app checks when it starts is "
+                                    "set in that window.")
+        self.updates_btn.clicked.connect(self._check_updates)
+        self.restart_btn = QPushButton("Restart App")
+        self.restart_btn.setToolTip("Keep these settings, then close and reopen the app with the same runs loaded")
+        self.restart_btn.clicked.connect(self._restart_app)
+        self.log_btn = QPushButton("Open Log Folder")
+        self.log_btn.setToolTip("Show the folder with the app's error log")
+        self.log_btn.clicked.connect(self._open_log_folder)
+        self.diag_btn = QPushButton("Copy Diagnostics")
+        self.diag_btn.setToolTip("Copy the app version, this computer's details and the end of the error log, "
+                                 "to paste into a bug report")
+        self.diag_btn.clicked.connect(self._copy_diagnostics)
+        for b in (self.updates_btn, self.restart_btn, self.log_btn, self.diag_btn):
+            row.addWidget(b)
+        v.addLayout(row)
+        self.app_status = QLabel()
+        self.app_status.setWordWrap(True)
+        self.app_status.setStyleSheet("color: gray;")
+        self.app_status.setVisible(False)
+        v.addWidget(self.app_status)
+        return box
+
+    def _check_updates(self):
+        """Close (keeping the fields); the main window then opens the Updates window."""
+        self.updates_requested = True
+        self.accept()
+
+    def _restart_app(self):
+        """Close (keeping the fields); the main window then restarts the app."""
+        self.restart_app_requested = True
+        self.accept()
+
+    def _open_log_folder(self):
+        try:
+            diagnostics.open_folder(diagnostics.log_folder(crash_log.log_path()))
+        except OSError as exc:
+            QMessageBox.warning(self, "Open Log Folder", f"Could not open the log folder:\n{exc}")
+
+    def diagnostics_text(self) -> str:
+        extra = {} if self.loaded_runs is None else {"Loaded runs": self.loaded_runs}
+        return diagnostics.report(shortcuts.APP_NAME, __version__, app_paths.app_dir(),
+                                  settings_dir=app_paths.current_settings_dir(), data_dir=app_paths.data_dir(),
+                                  log_path=crash_log.log_path(), extra=extra)
+
+    def _copy_diagnostics(self):
+        QApplication.clipboard().setText(self.diagnostics_text())
+        self.app_status.setText("Diagnostics copied. Paste them into a GitHub issue or an email.")
+        self.app_status.setVisible(True)
 
     def _restart_now(self):
         """Close without applying the other fields; the main window then restarts the app."""

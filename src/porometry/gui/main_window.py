@@ -41,7 +41,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from .. import __version__, app_paths, session, shortcuts, updater
+from .. import __version__, app_paths, session, shortcuts, single_instance, updater
 from ..analysis import Settings
 from ..archive import ArchiveError, list_archived
 from ..cft import PSI_TO_KPA
@@ -1167,14 +1167,18 @@ class MainWindow(QMainWindow):
     # ================================================================== settings, icon, help
     def open_settings(self):
         dlg = SettingsDialog(self.ws.settings, self.ws.qc_settings, self.group_include_warn, self,
-                             save_prefs=self._save_prefs)
+                             save_prefs=self._save_prefs, loaded_runs=len(self.ws.entries))
         if dlg.exec():
             self.ws.settings, self.ws.qc_settings, self.group_include_warn = dlg.values()
             self.ws.reanalyze()
             self._save_prefs()
             self._refresh_all()
-        elif dlg.restart_requested:  # the settings folder changed and the user chose to restart
+        if dlg.restart_requested:  # the settings folder changed and the user chose to restart
             self._restart(None)
+        elif dlg.restart_app_requested:  # Settings > App > Restart App (the settings were applied first)
+            self.restart_app()
+        elif dlg.updates_requested:  # Settings > App > Check for updates
+            self.show_updates()
 
     def make_app_icon(self):
         try:
@@ -1524,15 +1528,30 @@ class MainWindow(QMainWindow):
                  if Path(e.path).exists() and not any(Path(e.path).resolve().is_relative_to(f) for f in folders)]
         return [str(p) for p in [*folders, *files]]
 
-    def _restart(self, version: str | None):
-        """Start a new copy with the same runs and close this one (after an update or a settings folder change)."""
+    def restart_app(self):
+        """Settings > App > Restart App: close and reopen the app with the same runs loaded.
+
+        The app doesn't track unsaved changes, so it doesn't ask first: tags are written to run_tags.csv as
+        they change, settings are saved here, and an open session file is saved before the restart.
+        """
+        self._restart(None, note="")
+
+    def _restart(self, version: str | None, note: str = " to use the new settings folder"):
+        """Start a new copy with the same runs and close this one (Restart App, after an update or a settings
+        folder change)."""
         self._save_prefs()
-        ok = QProcess.startDetached(sys.executable, ["-m", "porometry", *self._restart_args()])[0]
+        args = ["-m", "porometry", *self._restart_args()]
+        single_instance.release()  # or the new copy finds this one still running and quits
+        ok = QProcess.startDetached(sys.executable, args)[0]
         if ok:
             self.close()
-        elif version is None:
-            QMessageBox.information(self, "Restart", "Couldn't restart automatically. Close the app and start it "
-                                    "again to use the new settings folder.")
+            return
+        guard = single_instance.acquire(shortcuts.APP_NAME)  # still running: take the lock back
+        if guard is not None:
+            guard.set_window(self)
+        if version is None:
+            QMessageBox.information(self, "Restart", f"Couldn't restart automatically. Close the app and start it "
+                                    f"again{note}.")
         else:
             QMessageBox.information(self, "Updated", f"Updated to version {version}. Close the app and start it "
                                     "again to use the new version.")

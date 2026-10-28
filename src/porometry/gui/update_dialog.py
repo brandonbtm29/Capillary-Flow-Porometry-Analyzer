@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import html
+import threading
 from collections.abc import Callable
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -55,6 +57,7 @@ class UpdateDialog(QDialog):
         self.updated_to: str | None = None
         self.restart = False
         self._worker: Worker | None = None
+        self._cancel: threading.Event | None = None
 
         lay = QVBoxLayout(self)
         self.headline = QLabel()
@@ -73,12 +76,19 @@ class UpdateDialog(QDialog):
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         self.check_btn = QPushButton("Check again")
+        self.page_btn = QPushButton("Open release page")
+        self.page_btn.setToolTip("The release on GitHub, with its notes and downloads")
         self.update_btn = QPushButton("Update and restart")
         self.update_btn.setDefault(True)
-        self.buttons.addButton(self.check_btn, QDialogButtonBox.ButtonRole.ActionRole)
-        self.buttons.addButton(self.update_btn, QDialogButtonBox.ButtonRole.ActionRole)
+        self.cancel_btn = QPushButton("Cancel update")
+        self.cancel_btn.setToolTip("Stop the update and leave the app as it was")
+        for b in (self.check_btn, self.page_btn, self.update_btn, self.cancel_btn):
+            self.buttons.addButton(b, QDialogButtonBox.ButtonRole.ActionRole)
+        self.cancel_btn.setVisible(False)  # only while updating (after addButton, which shows it)
         self.check_btn.clicked.connect(self.run_check)
+        self.page_btn.clicked.connect(self.open_release_page)
         self.update_btn.clicked.connect(self.run_update)
+        self.cancel_btn.clicked.connect(self.cancel_update)
         self.buttons.rejected.connect(self.reject)
         lay.addWidget(self.buttons)
 
@@ -105,7 +115,8 @@ class UpdateDialog(QDialog):
     def _show(self, info: UpdateInfo):
         if info.error:
             self.headline.setText(f"<b>You have version {info.current}.</b> Couldn't check for updates.")
-            self.notes.setPlainText(f"{info.error}\n\nCheck your internet connection and try again.")
+            hint = "\n\nCheck your internet connection and try again." if "reach GitHub" in info.error else ""
+            self.notes.setPlainText(info.error + hint)
             self.update_btn.setVisible(False)
             return
         if not info.available:
@@ -124,14 +135,38 @@ class UpdateDialog(QDialog):
             self.status.setText("Updating downloads the new version from GitHub and restarts the app with the "
                                 "same runs loaded. Your data files and settings are not touched.")
 
+    def open_release_page(self):
+        url = self.info.url if self.info is not None and self.info.url else updater.RELEASES_PAGE
+        QDesktopServices.openUrl(QUrl(url))
+
     # ------------------------------------------------------------------ update
     def run_update(self):
+        if self.info is None or not self.info.available:
+            return
+        tag = self.info.tag
+        self._cancel = cancel = threading.Event()
         self._busy(True)
+        self.cancel_btn.setText("Cancel update")
+        self.cancel_btn.setEnabled(True)
+        self.cancel_btn.setVisible(True)
         self.status.setText("Updating…")
-        self._start(lambda progress: updater.apply_update(self.repo, log=progress), self._updated)
+        self._start(lambda progress: updater.apply_update(self.repo, tag, log=progress, cancel=cancel), self._updated)
+
+    def cancel_update(self):
+        """Stop the update; the updater puts the app folder back as it was."""
+        if self._cancel is not None:
+            self._cancel.set()
+        self.cancel_btn.setText("Cancelling…")
+        self.cancel_btn.setEnabled(False)
+        self.status.setText("Cancelling: putting everything back as it was…")
 
     def _updated(self, result):
         self._busy(False)
+        self.cancel_btn.setVisible(False)
+        self._cancel = None
+        if isinstance(result, updater.UpdateCancelled):
+            self.status.setText(html.escape(str(result)).replace(chr(10), "<br>"))
+            return
         if isinstance(result, Exception):
             self.status.setText(f"<span style='color:#b3261e'>Update failed:</span> "
                                 f"{html.escape(str(result)).replace(chr(10), '<br>')}")
