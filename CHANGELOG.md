@@ -12,6 +12,12 @@ published releases). The version shows in the window title and the bottom-right 
 
 ## [Unreleased]
 
+### Changed
+- The data folder is now the app's own SyncThing folder, `~/SyncThing/Capillary Flow Porometer`, instead of
+  `Capillary Flow Porometer` inside the shared `~/SyncThing/UAkron Playground` folder (retired in November 2026).
+  A computer that has only the old folder keeps using it until SyncThing brings the new one.
+  `UAKRON_DATA_DIR` (the folder that holds the app's data folder) now defaults to `~/SyncThing`.
+
 ## 0.7.0 - 2026-10-28
 
 ### Added

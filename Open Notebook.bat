@@ -1,10 +1,12 @@
 @echo off
 rem Opens your working copy of the comparison notebook in JupyterLab.
 rem The working copy (with your plots and numbers) lives in SyncThing, not in this public repo:
-rem   %USERPROFILE%\SyncThing\UAkron Playground\Capillary Flow Porometer\Notebooks\compare_conditions.ipynb
+rem   %USERPROFILE%\SyncThing\Capillary Flow Porometer\Notebooks\compare_conditions.ipynb
 rem It is copied from examples\compare_conditions.ipynb the first time. Set UAKRON_DATA_DIR to use another root.
 set "REPO=%~dp0"
-set "ROOT=%USERPROFILE%\SyncThing\UAkron Playground"
+set "ROOT=%USERPROFILE%\SyncThing"
+rem Before Nov 2026 the data folder was inside the shared "UAkron Playground" SyncThing folder.
+if not exist "%ROOT%\Capillary Flow Porometer\" if exist "%ROOT%\UAkron Playground\Capillary Flow Porometer\" set "ROOT=%ROOT%\UAkron Playground"
 if defined UAKRON_DATA_DIR set "ROOT=%UAKRON_DATA_DIR%"
 set "NBDIR=%ROOT%\Capillary Flow Porometer\Notebooks"
 if not exist "%REPO%.venv\Scripts\jupyter-lab.exe" (

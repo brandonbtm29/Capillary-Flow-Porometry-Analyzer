@@ -38,10 +38,11 @@ REPO = find_repo()
 # or set the CFP_DATA_DIR environment variable to the data folder itself.
 DATE = "2026-10-11"                 # sub-folder of Data/ to load
 SYNC_ROOTS = [Path.home() / "SyncThing", Path.home() / "Sync", Path.home() / "Documents" / "SyncThing"]
+SUBFOLDERS = ["", "UAkron Playground"]  # the app's own SyncThing folder, then the old shared one
 DATA_CANDIDATES = (
     [os.environ.get("CFP_DATA_DIR")]
-    + [root / "UAkron Playground" / "Capillary Flow Porometer" / "Data" / DATE for root in SYNC_ROOTS]
-    + [root / "UAkron Playground" / "Capillary Flow Porometer" / "Test Data" for root in SYNC_ROOTS]
+    + [root / sub / "Capillary Flow Porometer" / "Data" / DATE for root in SYNC_ROOTS for sub in SUBFOLDERS]
+    + [root / sub / "Capillary Flow Porometer" / "Test Data" for root in SYNC_ROOTS for sub in SUBFOLDERS]
 )
 DATA_DIR = next((Path(p) for p in DATA_CANDIDATES if p and Path(p).exists()), None)
 if DATA_DIR is None:

@@ -1,7 +1,8 @@
 """Where the real lab test files live (outside the repo, in SyncThing).
 
 Order: $POROMETRY_TEST_DATA, else $UAKRON_DATA_DIR/Capillary Flow Porometer/Test Data,
-else ~/SyncThing/UAkron Playground/Capillary Flow Porometer/Test Data.
+else ~/SyncThing/Capillary Flow Porometer/Test Data (or, on a computer that still has only the old
+shared folder, ~/SyncThing/UAkron Playground/Capillary Flow Porometer/Test Data).
 Tests that need these files are skipped when they are not there (e.g. a fresh public clone).
 """
 
@@ -16,8 +17,11 @@ def _test_data_dir() -> Path:
     env = os.environ.get("POROMETRY_TEST_DATA")
     if env:
         return Path(env)
-    base = os.environ.get("UAKRON_DATA_DIR") or Path.home() / "SyncThing" / "UAkron Playground"
-    return Path(base) / "Capillary Flow Porometer" / "Test Data"
+    if os.environ.get("UAKRON_DATA_DIR"):
+        return Path(os.environ["UAKRON_DATA_DIR"]) / "Capillary Flow Porometer" / "Test Data"
+    sync = Path.home() / "SyncThing"
+    new, old = sync / "Capillary Flow Porometer", sync / "UAkron Playground" / "Capillary Flow Porometer"
+    return (old if not new.is_dir() and old.is_dir() else new) / "Test Data"
 
 
 DATA = _test_data_dir()

@@ -2,11 +2,14 @@
 # macOS / Linux: opens your working copy of the comparison notebook in JupyterLab
 # (sets up ~/.venvs/porometry-analyzer the first time).
 # The working copy (with your plots and numbers) lives in SyncThing, not in this public repo:
-#   ~/SyncThing/UAkron Playground/Capillary Flow Porometer/Notebooks/compare_conditions.ipynb
+#   ~/SyncThing/Capillary Flow Porometer/Notebooks/compare_conditions.ipynb
 # It is copied from examples/compare_conditions.ipynb the first time. Set UAKRON_DATA_DIR to use another root.
 REPO="$(cd "$(dirname "$0")" && pwd)" || exit 1
 VENV="$HOME/.venvs/porometry-analyzer"   # outside the repo and SyncThing
-ROOT="${UAKRON_DATA_DIR:-$HOME/SyncThing/UAkron Playground}"
+ROOT="$HOME/SyncThing"
+# Before Nov 2026 the data folder was inside the shared "UAkron Playground" SyncThing folder.
+[ -d "$ROOT/Capillary Flow Porometer" ] || [ ! -d "$ROOT/UAkron Playground/Capillary Flow Porometer" ] || ROOT="$ROOT/UAkron Playground"
+ROOT="${UAKRON_DATA_DIR:-$ROOT}"
 NBDIR="$ROOT/Capillary Flow Porometer/Notebooks"
 if [ ! -x "$VENV/bin/jupyter-lab" ]; then
   mkdir -p "$(dirname "$VENV")"

@@ -10,7 +10,7 @@ dist/
 .venv-mac/
 
 # Measurement data never goes in this public repo: it lives in
-# SyncThing/UAkron Playground/Capillary Flow Porometer/ (see README "Where the data lives")
+# SyncThing/Capillary Flow Porometer/ (see README "Where the data lives")
 tests/data/
 *.CFT
 *.cft

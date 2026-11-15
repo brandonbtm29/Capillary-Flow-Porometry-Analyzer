@@ -22,7 +22,7 @@ python tools/caprep_check.py         # re-check against CapRep's own reports (ne
 
 ## Where code and data live
 - **Code** (this repo): `C:\Users\Brand\GitHub Projects\UAkron\Capillary-Flow-Porometry-Analyzer` on Windows, `~/GitHub Projects/UAkron/Capillary-Flow-Porometry-Analyzer` on the Mac (a clone made before the rename may still be called `Porometry-Analyzer`). Syncs through GitHub only.
-- **Data** stays in SyncThing: `~/SyncThing/UAkron Playground/Capillary Flow Porometer/` (root override `UAKRON_DATA_DIR`): `Data/<date>/` runs, `Test Data/` (files the tests use; `POROMETRY_TEST_DATA` overrides), `Validation/` (caprep_check output), `Lab Notes.md` (instrument notes, run history, plans). **Never copy `.CFT` files, CapRep exports, notebook outputs, run results (even as test expectations) or validation tables into this public repo.** Test expectations live in `Test Data/expected_values.json`.
+- **Data** stays in SyncThing: `~/SyncThing/Capillary Flow Porometer/` (root override `UAKRON_DATA_DIR`): `Data/<date>/` runs, `Test Data/` (files the tests use; `POROMETRY_TEST_DATA` overrides), `Validation/` (caprep_check output), `Lab Notes.md` (instrument notes, run history, plans). **Never copy `.CFT` files, CapRep exports, notebook outputs, run results (even as test expectations) or validation tables into this public repo.** Test expectations live in `Test Data/expected_values.json`.
 - Instrument PC files: `C:\CFP-1500AEX\` (manual in `Manual\`, CapWin help in `CapWinHelp\`, `CapHelp\`; everyone's runs and CapRep `.xls` exports in `StudentData\`).
 
 ## Layout

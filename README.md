@@ -157,7 +157,7 @@ macOS plist:
   stays in the app folder, because those paths differ between computers.
 
 To share the first file between the Mac and the PC, open **Settings > Settings Folder > Change...** and pick a
-folder in SyncThing, e.g. `UAkron Playground/Capillary Flow Porometer/Settings`. The app copies your
+folder in SyncThing, e.g. `Capillary Flow Porometer/Settings`. The app copies your
 current settings there and asks to restart. On the second computer, choose the same folder: it uses the
 settings already there instead of overwriting them. **Use Default** goes back to the app folder. The
 `UAKRON_SETTINGS_DIR` environment variable overrides the choice. Both files are ignored by git.
@@ -200,7 +200,7 @@ version. Turn off the start-up check in the same window. What changed in each ve
 figure with plain matplotlib, so you can change colors, limits and labels cell by cell.
 
 The copy in this repo is a template with no results in it. You work in your own copy, which lives
-with the data in SyncThing: `~/SyncThing/UAkron Playground/Capillary Flow Porometer/Notebooks/`.
+with the data in SyncThing: `~/SyncThing/Capillary Flow Porometer/Notebooks/`.
 `Open Notebook.bat` (Windows) or `Open Notebook.command` (macOS) makes that copy the first time and
 opens it in JupyterLab. In VS Code, open the same file and pick the app's Python environment as the
 kernel (`.venv` in this folder on Windows, `~/.venvs/porometry-analyzer` on macOS); plots show up
@@ -304,7 +304,7 @@ examples/       using the library from a script or Jupyter
 ## Where the data lives
 
 This repo holds code only. Measurement data stays in SyncThing, like the other UAkron lab apps:
-`~/SyncThing/UAkron Playground/Capillary Flow Porometer/` (set `UAKRON_DATA_DIR` to use another root).
+`~/SyncThing/Capillary Flow Porometer/` (set `UAKRON_DATA_DIR` to use another root).
 
 | Folder | Contents |
 |---|---|

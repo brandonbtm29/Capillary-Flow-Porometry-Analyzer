@@ -41,8 +41,12 @@ def app_dir() -> str:
 
 def data_dir() -> str:
     """This app's data folder; a relative settings folder (e.g. "Settings") is placed inside it."""
-    base = os.environ.get("UAKRON_DATA_DIR") or os.path.join(os.path.expanduser("~"), "SyncThing", "UAkron Playground")
-    return os.path.join(base, DATA_FOLDER)
+    if os.environ.get("UAKRON_DATA_DIR"):
+        return os.path.join(os.environ["UAKRON_DATA_DIR"], DATA_FOLDER)
+    # The app's own SyncThing folder; the old shared one (before Nov 2026) until SyncThing brings it.
+    sync = os.path.join(os.path.expanduser("~"), "SyncThing")
+    new, old = os.path.join(sync, DATA_FOLDER), os.path.join(sync, "UAkron Playground", DATA_FOLDER)
+    return old if not os.path.isdir(new) and os.path.isdir(old) else new
 
 
 def settings_dir() -> str:
@@ -101,4 +105,6 @@ def folder_box(save_cb=None, restart_cb=None, parent=None):
         label.setWordWrap(True)
         QVBoxLayout(box).addWidget(label)
         return box
-    return settings_location.settings_folder_box(app_dir(), data_dir(), [SETTINGS_FILE], save_cb, restart_cb, parent)
+    return settings_location.settings_folder_box(
+        app_dir(), data_dir(), [SETTINGS_FILE], save_cb, restart_cb, parent
+    )

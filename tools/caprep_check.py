@@ -186,8 +186,13 @@ def summarize(df: pd.DataFrame) -> None:
 
 
 def default_out() -> Path:
-    base = os.environ.get("UAKRON_DATA_DIR") or Path.home() / "SyncThing" / "UAkron Playground"
-    return Path(base) / "Capillary Flow Porometer" / "Validation" / "caprep_comparison.csv"
+    if os.environ.get("UAKRON_DATA_DIR"):
+        folder = Path(os.environ["UAKRON_DATA_DIR"]) / "Capillary Flow Porometer"
+    else:  # the app's own SyncThing folder; the old shared one (before Nov 2026) until it arrives
+        sync = Path.home() / "SyncThing"
+        new, old = sync / "Capillary Flow Porometer", sync / "UAkron Playground" / "Capillary Flow Porometer"
+        folder = old if not new.is_dir() and old.is_dir() else new
+    return folder / "Validation" / "caprep_comparison.csv"
 
 
 def main(argv=None):
