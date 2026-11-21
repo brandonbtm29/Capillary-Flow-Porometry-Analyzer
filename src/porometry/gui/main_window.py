@@ -247,6 +247,11 @@ class MainWindow(QMainWindow):
           "Give the selected runs the same value of a field (e.g. Condition)")
         A("add_field", "Add field…", self.add_field)
         A("reset_tags", "Reset tags to automatic", self.reset_tags)
+        A("mark_dry", "Mark as dry check", lambda: self.set_dry_check(True), None,
+          "The selected runs are dry checks (the dry specimen run again to see whether the flow repeats): their two "
+          "passes are compared, they aren't checked for leaks, have no pore sizes and are never averaged")
+        A("unmark_dry", "Not a dry check", lambda: self.set_dry_check(False), None,
+          "Check the selected runs as normal pore-size tests again")
         A("style", "Style…", self.style_selected, "Ctrl+L", "Colour, marker, line and legend label of the selected runs")
         A("reset_style", "Reset style", self.reset_style)
         A("group_colors", "Group colours…", self.edit_group_colors)
@@ -306,6 +311,9 @@ class MainWindow(QMainWindow):
         self.field_menu = m.addMenu("Set field for selected")
         m.addAction(self.actions["add_field"])
         m.addAction(self.actions["reset_tags"])
+        m.addSeparator()
+        m.addAction(self.actions["mark_dry"])
+        m.addAction(self.actions["unmark_dry"])
         m.addSeparator()
         for k in ("style", "reset_style", "group_colors"):
             m.addAction(self.actions[k])
@@ -907,6 +915,14 @@ class MainWindow(QMainWindow):
             self.ws.reset_tags(sel)
             self._after_tags()
 
+    def set_dry_check(self, on: bool, entries: list[Entry] | None = None):
+        sel = entries or self._selected_or_current()
+        if not sel:
+            QMessageBox.information(self, "Dry check", "Select the runs first (Ctrl- or Shift-click).")
+            return
+        self.ws.set_dry_check(sel, on)
+        self._after_tags()
+
     def _after_tags(self):
         self._save_prefs()
         self._warn_tag_writes()
@@ -1228,10 +1244,11 @@ class MainWindow(QMainWindow):
         self._show_details()
         n = len(self.ws.entries)
         if n:
-            counts = {lv: sum(e.qc.level == lv for e in self.ws.entries) for lv in Level}
+            dry = [e for e in self.ws.entries if e.dry_check]
+            counts = {lv: sum(e.qc.level == lv for e in self.ws.entries if not e.dry_check) for lv in Level}
             self.statusBar().showMessage(
                 f"{n} runs · {counts[Level.PASS] + counts[Level.INFO]} pass · {counts[Level.WARN]} warn · "
-                f"{counts[Level.FAIL]} fail")
+                f"{counts[Level.FAIL]} fail" + (f" · {len(dry)} dry check{'s' if len(dry) != 1 else ''}" if dry else ""))
 
     def _rebuild_tree(self):
         self._building = True
@@ -1426,6 +1443,11 @@ class MainWindow(QMainWindow):
         sub.addSeparator()
         sub.addAction("New field…", self.add_field)
         m.addAction("Reset tags to automatic", lambda: self.reset_tags(sel))
+        m.addSeparator()
+        if any(not e.dry_check for e in sel):
+            m.addAction(f"Mark {n} run(s) as dry check", lambda: self.set_dry_check(True, sel))
+        if any(e.dry_check for e in sel):
+            m.addAction("Not a dry check", lambda: self.set_dry_check(False, [e for e in sel if e.dry_check]))
         m.addSeparator()
         m.addAction(f"Style {n} run(s)…", self.style_selected)
         m.addAction("Reset style", self.reset_style)

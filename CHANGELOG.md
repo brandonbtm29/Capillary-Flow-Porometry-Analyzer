@@ -10,6 +10,20 @@ Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**
 Each release is tagged `vX.Y.Z` and published as a release on GitHub (the app's Update button only offers
 published releases). The version shows in the window title and the bottom-right corner of the app.
 
+## 0.8.0 - 2026-11-21
+
+### Added
+- **Mark runs as dry checks** (*Runs > Mark as dry check*, or right-click the runs). A dry check is the
+  specimen run dry again after its test, to see whether the flow repeats. It no longer fails QC as a leak.
+  Instead the app checks that its two passes agree (within 5 %) and, when the test before it on the same
+  specimen is loaded (same Condition and Sample, Replicate one lower), that its second pass matches that
+  test's dry curve (within 15 %). Dry checks have no pore sizes, are never averaged, show only on the flow
+  plot (labelled *[dry check]*) and read *dry check* in the QC column. The mark is saved in `run_tags.csv`
+  next to the data (column *Dry check*, "yes"), so you can also type it in Excel. Both limits are in
+  Settings. **Not a dry check** takes the mark off.
+- A run that fails the leak check but whose wet and dry flow agree from the start now also says **Looks
+  like a dry check**, and how to mark it.
+
 ## 0.7.1 - 2026-11-21
 
 ### Fixed

@@ -20,7 +20,7 @@ from .qc import Level
 # runs 9+ reuse the hues with a different marker so identity never rests on colour alone.
 PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
 MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
-STATUS_COLORS = {"pass": "#0ca30c", "info": "#2a78d6", "warn": "#fab219", "fail": "#d03b3b"}
+STATUS_COLORS = {"pass": "#0ca30c", "info": "#2a78d6", "warn": "#fab219", "fail": "#d03b3b", "dry check": "#7d8b99"}
 INK = "#0b0b0b"
 INK2 = "#52514e"
 GRID = "#e4e3df"
@@ -114,6 +114,7 @@ class Series:
     extra: dict = field(default_factory=dict)
     linestyle: str | None = None  # None: solid, dashed if the run fails QC
     linewidth: float | None = None  # None: PlotOptions.line_width
+    dry_check: bool = False  # drawn on the flow plot only (its two passes); no pore sizes
 
     @property
     def name(self) -> str:
@@ -170,6 +171,8 @@ def _log_diameter_axis(ax: Axes) -> None:
 
 
 def _label(s: Series) -> str:
+    if s.dry_check:
+        return s.name + "  [dry check]"
     return s.name + ("  [QC fail]" if s.level >= Level.FAIL else "")
 
 
@@ -226,14 +229,15 @@ def draw_flow(ax: Axes, series: list[Series], o: PlotOptions, groups: list[G.Gro
         if a.wet_dp.size:
             ax.plot(_p(a.wet_dp, o.units), a.wet_flow / 1000, _ls(s), color=s.color, lw=lw, alpha=al,
                     marker=None if faded else _marker(s, o), markevery=max(1, a.wet_dp.size // 25),
-                    label=None if faded else (f"{_label(s)} wet" if single else _label(s)))
+                    label=None if faded else (f"{_label(s)} {'pass 1' if s.dry_check else 'wet'}" if single
+                                              else _label(s)))
         if a.dry_dp.size:
             ax.plot(_p(a.dry_dp, o.units), a.dry_flow / 1000, ":", color=s.color, lw=max(1.0, lw - 0.4), alpha=al,
-                    label=f"{s.name} dry" if single else None)
+                    label=f"{s.name} {'pass 2' if s.dry_check else 'dry'}" if single else None)
         if single and o.show_half_dry and a.dry_dp.size:
             ax.plot(_p(a.dry_dp, o.units), a.dry_flow / 2000, "-", color=INK2, lw=0.9, alpha=0.8, label="half dry")
         for dp, txt in ((a.bubble_dp, "bubble point"), (a.mean_flow_dp, "mean flow pore")):
-            if dp is None or not single:
+            if dp is None or not single or s.dry_check:
                 continue
             x = float(_p(dp, o.units))
             ax.axvline(x, color=INK2, lw=0.8, ls=(0, (2, 3)))
@@ -265,7 +269,7 @@ def draw_flow(ax: Axes, series: list[Series], o: PlotOptions, groups: list[G.Gro
 
 
 def draw_cff(ax: Axes, series: list[Series], o: PlotOptions, groups: list[G.GroupData] | None = None) -> None:
-    runs, faded = _runs(series, o, groups)
+    runs, faded = _runs([s for s in series if not s.dry_check], o, groups)
     hl = any(s.highlighted for s in runs)
     for s in runs:
         a = s.analysis
@@ -299,7 +303,7 @@ def draw_cff(ax: Axes, series: list[Series], o: PlotOptions, groups: list[G.Grou
 
 
 def draw_psd(ax: Axes, series: list[Series], o: PlotOptions, groups: list[G.GroupData] | None = None) -> None:
-    runs, faded = _runs(series, o, groups)
+    runs, faded = _runs([s for s in series if not s.dry_check], o, groups)
     hl = any(s.highlighted for s in runs)
     ylab = "Pore size distribution (%/µm²)" if o.psd_weighting in ("D2", "dD2") else "Pore size distribution (%/µm)"
     binned = o.psd_mode == "binned"

@@ -19,6 +19,8 @@ from .tags import DEFAULT_FIELDS, MemoryTags, SidecarTags, TagStore, auto_tags, 
 
 RUN = "Run"  # "colour by" / "average by" choice: every run on its own
 GROUPS = "Groups"  # your named groups, stored like a tag: "Speed series; S1 replicates"
+DRY_CHECK = "Dry check"  # "yes" = the run is a dry check (the dry specimen run again); stored like a tag
+_YES = {"yes", "y", "true", "1", "x"}
 STYLE_KEYS = ("color", "marker", "linestyle", "linewidth", "label")
 
 
@@ -74,6 +76,11 @@ class Entry:
         """Your named groups this run is in (a run can be in several)."""
         return split_groups(self.tags.get(GROUPS, ""))
 
+    @property
+    def dry_check(self) -> bool:
+        """Marked as a dry check: checked as one, no pore sizes, never averaged."""
+        return (self.tags.get(DRY_CHECK, "") or "").strip().lower() in _YES
+
 
 @dataclass
 class Workspace:
@@ -122,8 +129,9 @@ class Workspace:
             known.add(p.resolve())
             added.append(e)
         for f in self.tag_store.fields_seen():
-            if f not in self.fields and f != GROUPS:
+            if f not in self.fields and f not in (GROUPS, DRY_CHECK):
                 self.fields.append(f)
+        self.recheck()
         self.restyle()
         return added
 
@@ -180,8 +188,37 @@ class Workspace:
     def reanalyze(self) -> None:
         for e in self.entries:
             e.analysis = analyze(e.run, self.settings)
-            e.qc = check(e.analysis, self.qc_settings)
         self.regroup()
+
+    # ---------------------------------------------------------------- QC and dry checks
+    def recheck(self) -> None:
+        """Run the data-quality checks again (after tags change: dry checks are compared with the test before)."""
+        for e in self.entries:
+            e.qc = check(e.analysis, self.qc_settings, e.dry_check, self.previous_test(e))
+
+    def previous_test(self, e: Entry) -> Analysis | None:
+        """For a dry check: the run before it on the same specimen (same Condition and Sample, Replicate one
+        lower) if it is loaded, else None."""
+        if not e.dry_check:
+            return None
+        try:
+            n = int(e.tags.get("Replicate", ""))
+        except ValueError:
+            return None
+        key = (e.tags.get("Condition", ""), e.tags.get("Sample", ""))
+        for o in self.entries:
+            if (o is not e and not o.dry_check and (o.tags.get("Condition", ""), o.tags.get("Sample", "")) == key
+                    and o.tags.get("Replicate", "") == str(n - 1)):
+                return o.analysis
+        return None
+
+    def set_dry_check(self, entries: list[Entry], on: bool = True) -> None:
+        """Mark runs as dry checks (saved next to the data in run_tags.csv), or unmark them."""
+        for e in entries:
+            self.tag_store.set(e.path, DRY_CHECK, "yes" if on else None)
+            self._retag(e)
+        self.recheck()
+        self.restyle()
 
     # ---------------------------------------------------------------- tags
     def _migrate_legacy(self, e: Entry) -> None:
@@ -269,23 +306,26 @@ class Workspace:
     def set_tag(self, entries: list[Entry], fld: str, value: str) -> None:
         """Set a field for these runs (saved next to the data). Blank = back to automatic."""
         value = (value or "").strip()
-        if fld not in self.fields and fld not in (RUN, GROUPS):
+        if fld not in self.fields and fld not in (RUN, GROUPS, DRY_CHECK):
             self.fields.append(fld)
         for e in entries:
             self.tag_store.set(e.path, fld, value if value and value != e.auto.get(fld, "") else None)
             self._retag(e)
+        self.recheck()
         self.restyle()
 
     def reset_tags(self, entries: list[Entry], fields: list[str] | None = None) -> None:
+        """Back to the automatic values. The dry-check mark stays unless `fields` names it."""
         for e in entries:
-            for f in fields or list(self.tag_store.get(e.path)):
+            for f in fields or [k for k in self.tag_store.get(e.path) if k != DRY_CHECK]:
                 self.tag_store.set(e.path, f, None)
             self._retag(e)
+        self.recheck()
         self.restyle()
 
     def add_field(self, name: str) -> None:
         name = name.strip()
-        if name and name not in self.fields and name not in (RUN, GROUPS):
+        if name and name not in self.fields and name not in (RUN, GROUPS, DRY_CHECK):
             self.fields.append(name)
 
     def values(self, fld: str) -> list[str]:
@@ -296,6 +336,7 @@ class Workspace:
     def regroup(self) -> None:
         for e in self.entries:
             self._retag(e)
+        self.recheck()
         self.restyle()
 
     # pre-0.4 API (kept for scripts and the notebook)
@@ -388,16 +429,16 @@ class Workspace:
     def series(self, entries: list[Entry] | None = None, highlight: str | None = None) -> list[Series]:
         entries = [e for e in self.scope() if e.visible] if entries is None else entries
         return [Series(e.analysis, e.color, e.marker, e.qc.level, e.label, highlighted=(e.name == highlight),
-                       linestyle=e.style.get("linestyle"), linewidth=e.style.get("linewidth"))
+                       linestyle=e.style.get("linestyle"), linewidth=e.style.get("linewidth"), dry_check=e.dry_check)
                 for e in entries]
 
     def group_data(self, max_level: Level = Level.WARN, visible_only: bool = True) -> list[GroupData]:
         """Groups of the 'average by' field, in natural order, for mean curves and the compare chart.
-        Runs whose QC is worse than `max_level` are kept apart (shown, not averaged)."""
+        Runs whose QC is worse than `max_level` are kept apart (shown, not averaged). Dry checks are left out."""
         colors = self.group_colors()
         by: dict[str, list[Entry]] = {}
         for e in self.scope():
-            if e.visible or not visible_only:
+            if (e.visible or not visible_only) and not e.dry_check:
                 by.setdefault(e.group, []).append(e)
         out = []
         for g in sorted(by, key=sort_key):
@@ -412,11 +453,11 @@ class Workspace:
         for e in self.scope():
             a = e.analysis
 
-            def p(x):
-                return None if x is None else round(x * f, 3)
+            def p(x, blank=e.dry_check):  # no pore sizes from a dry check
+                return None if x is None or blank else round(x * f, 3)
 
-            def d(x):
-                return None if x is None else round(x, 4)
+            def d(x, blank=e.dry_check):
+                return None if x is None or blank else round(x, 4)
 
             row = {"Run": e.name, "Average group": e.group}
             row.update({k: e.tags.get(k, "") for k in self.fields if k not in row})
@@ -424,6 +465,7 @@ class Workspace:
             row.update({
                 "QC": e.qc.status,
                 "QC issues": e.qc.summary(),
+                DRY_CHECK: "yes" if e.dry_check else "",
                 "Date": e.run.date,
                 "Fluid": e.run.fluid,
                 "Surface tension (dyn/cm)": e.run.surface_tension,
@@ -447,7 +489,8 @@ class Workspace:
         rows = []
         groups: dict[str, list[Entry]] = {}
         for e in self.scope():
-            groups.setdefault(e.group, []).append(e)
+            if not e.dry_check:
+                groups.setdefault(e.group, []).append(e)
         for g in sorted(groups, key=sort_key):
             es = groups[g]
             use = [e for e in es if e.qc.level <= max_level]

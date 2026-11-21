@@ -223,3 +223,16 @@ def test_recent_folders_are_remembered(win, speeds, tmp_path):
     assert not win.recent_folders_menu.actions()[0].isEnabled()  # gone: greyed out
     win._clear_recent_folders()
     assert win._recent_folders() == []
+
+
+def test_mark_as_dry_check(win):
+    from PyQt6.QtCore import Qt
+    assert "mark_dry" in win.actions and "unmark_dry" in win.actions
+    e = win.ws.entries[0]
+    win.set_dry_check(True, [e])
+    assert e.dry_check
+    it = win.tree.findItems(e.name, Qt.MatchFlag.MatchExactly | Qt.MatchFlag.MatchRecursive, 0)[0]
+    assert it.text(win.tree.columnCount() - 1) == "dry check"
+    assert "1 dry check" in win.statusBar().currentMessage()
+    win.set_dry_check(False, [e])
+    assert not e.dry_check

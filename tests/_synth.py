@@ -14,6 +14,18 @@ def write_run(path: Path, shift: float = 1.0, noise: float = 0.0, seed: int = 0)
     wet = [(max(0.0, 1000 * d * np.clip((d - shift) / 3, 0, 1) * (1 + rng.normal(0, noise))), P0 + d)
            for d in wet_dp]
     dry = [(1000 * d, P0 + d) for d in np.arange(0.5, 7.01, 0.5)]
+    return _write(path, wet, dry)
+
+
+def write_dry_check(path: Path, first: float = 1.0, second: float = 1.0) -> Path:
+    """A dry check: the dry specimen run twice. Both passes are write_run's dry curve, scaled by `first`
+    (stored as the wet curve, as CapWin does) and `second` (stored as the dry curve)."""
+    wet = [(1000 * d * first, P0 + d) for d in np.arange(0.0, 7.01, 0.25)]
+    dry = [(1000 * d * second, P0 + d) for d in np.arange(0.5, 7.01, 0.5)]
+    return _write(path, wet, dry)
+
+
+def _write(path: Path, wet, dry) -> Path:
     lines = ["EXTENDED", " 8 ", "Operator=Test", "Lot Number=", "Hardware Serial Number=0",
              "Type of test= Wet Up/Dry Up", "Wet Parameter=x.tpf", "Dry Parameter=x.tpf", "Lohm Table=lohmtable.cal",
              "Tortuosity Factor= .715", "01-01-2026", "", "", "Galwick", "-15.9", " .635", " .05", "1"]

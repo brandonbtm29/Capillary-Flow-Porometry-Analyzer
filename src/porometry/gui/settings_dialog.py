@@ -97,6 +97,13 @@ class SettingsDialog(QDialog):
         f.addRow("Wet-above-dry warning at CFF", self.over)
         self.closed = _dspin(qc.wet_meets_dry_cff, 50, 100, 1, 1, " %")
         f.addRow("Wet-meets-dry required CFF", self.closed)
+        self.dry_pass = _dspin(qc.dry_check_pass_pct, 0.5, 100, 0.5, 1, " %")
+        self.dry_pass.setToolTip("Runs marked as dry checks: largest median difference between the two passes")
+        f.addRow("Dry check: passes agree within", self.dry_pass)
+        self.dry_prev = _dspin(qc.dry_check_previous_pct, 1, 100, 1, 1, " %")
+        self.dry_prev.setToolTip("Runs marked as dry checks: largest median difference from the dry curve of the "
+                                 "test before it on the same specimen")
+        f.addRow("Dry check: matches the test before within", self.dry_prev)
         lay.addWidget(box)
 
         # --- grouping
@@ -226,6 +233,8 @@ class SettingsDialog(QDialog):
         self.leak_cff.setValue(q.leak_cff)
         self.over.setValue(q.wet_above_dry_cff)
         self.closed.setValue(q.wet_meets_dry_cff)
+        self.dry_pass.setValue(q.dry_check_pass_pct)
+        self.dry_prev.setValue(q.dry_check_previous_pct)
         self.inc_warn.setChecked(True)
 
     def values(self) -> tuple[Settings, QCSettings, bool]:
@@ -244,5 +253,7 @@ class SettingsDialog(QDialog):
             leak_cff=self.leak_cff.value(),
             wet_above_dry_cff=self.over.value(),
             wet_meets_dry_cff=self.closed.value(),
+            dry_check_pass_pct=self.dry_pass.value(),
+            dry_check_previous_pct=self.dry_prev.value(),
         )
         return s, q, self.inc_warn.isChecked()

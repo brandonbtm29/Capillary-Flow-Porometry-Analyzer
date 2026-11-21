@@ -275,6 +275,22 @@ Bubble points of the lab's test runs also match CapWin's own `log.txt` exactly.
 
 All thresholds are in **Settings**.
 
+### Dry checks
+
+A dry check is the specimen run dry again after its test, to see whether the flow repeats. Both passes are
+dry, so it would fail as a leak. Select the runs and choose **Runs > Mark as dry check** (or right-click
+them). A dry check then:
+
+- isn't checked for leaks or pore sizes, has no pore sizes in the tables and is never averaged;
+- shows only on the flow plot, labelled *[dry check]*, and reads *dry check* in the QC column;
+- passes if its two passes agree within 5 % (median), and warns if they don't;
+- is compared with the dry curve of the test before it on the same specimen (same Condition and Sample,
+  Replicate one lower), when that run is loaded: within 15 % passes, more warns.
+
+Both limits are in **Settings**. The mark is saved in `run_tags.csv` next to the data (column *Dry check*,
+"yes"), so it travels with the data and can be typed in Excel. **Not a dry check** takes it off. A run that
+fails the leak check but whose wet and dry flow agree from the start says *Looks like a dry check*.
+
 ## Project layout
 
 ```
