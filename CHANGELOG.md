@@ -10,7 +10,14 @@ Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**
 Each release is tagged `vX.Y.Z` and published as a release on GitHub (the app's Update button only offers
 published releases). The version shows in the window title and the bottom-right corner of the app.
 
-## [Unreleased]
+## 0.7.1 - 2026-11-21
+
+### Fixed
+- **File names like `CFP-0_25MM_MIN_S2T1` are read properly.** They now give Sample *S2* and Replicate *1*,
+  so the tests of one draw speed average together again. Before, the whole `S2T1` ended up in the Condition,
+  so every run was its own group. The end of a file name can give the specimen and the test in either order,
+  with or without `_`, `-` or a space between them, in capitals or not: `_S1_TEST2`, `_S2T1`, `_S2-T1`,
+  `_SAMPLE2_RUN3`, `_T1_S2`, or just `_T3` or `_S4`. A value you typed in a tag cell still wins.
 
 ### Changed
 - The data folder is now the app's own SyncThing folder, `~/SyncThing/Capillary Flow Porometer`, instead of

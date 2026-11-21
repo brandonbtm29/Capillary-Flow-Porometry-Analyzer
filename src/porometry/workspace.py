@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -16,10 +15,8 @@ from .cft import PSI_TO_KPA, CFTError, Run, read_cft
 from .figures import MARKERS, Series, palette_colors, style_for
 from .groups import METRICS, GroupData, compare_stats, format_p, metric_label, metric_value
 from .qc import Level, QCReport, QCSettings, check
-from .tags import DEFAULT_FIELDS, MemoryTags, SidecarTags, TagStore, auto_tags, sort_key
+from .tags import DEFAULT_FIELDS, MemoryTags, SidecarTags, TagStore, auto_tags, sort_key, split_name
 
-_SUFFIX = re.compile(r"(?:[_\- ](?:TEST|RUN|T)\d+)$", re.IGNORECASE)
-_SPECIMEN = re.compile(r"(?:[_\- ](?:S|SAMPLE)\d+)$", re.IGNORECASE)
 RUN = "Run"  # "colour by" / "average by" choice: every run on its own
 GROUPS = "Groups"  # your named groups, stored like a tag: "Speed series; S1 replicates"
 STYLE_KEYS = ("color", "marker", "linestyle", "linewidth", "label")
@@ -39,14 +36,11 @@ def default_tag_store() -> TagStore:
 
 
 def group_key(path: Path, mode: str = "name") -> str:
-    """Raw file-name group (kept for scripts): file name with trailing _TEST#, then _S# removed
-    (CFP-10_00MM_MIN_S1_TEST1 -> CFP-10_00MM_MIN), or the folder name for mode "folder"."""
+    """Raw file-name group (kept for scripts): file name without the trailing specimen and test numbers
+    (CFP-10_00MM_MIN_S1_TEST1, CFP-10_00MM_MIN_S2T1 -> CFP-10_00MM_MIN), or the folder name for mode "folder"."""
     if mode == "folder":
         return path.parent.name
-    stem = path.stem
-    stem = _SUFFIX.sub("", stem)
-    stem = _SPECIMEN.sub("", stem)
-    return stem
+    return split_name(path.stem)[0]
 
 
 @dataclass(eq=False)  # identity comparison: entries hold numpy arrays

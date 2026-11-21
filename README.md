@@ -95,6 +95,8 @@ default, or Sample, Folder, a field you added, or **Run (no averaging)** to comp
 
 **Tags** describe each run: **Condition**, **Sample**, **Replicate** and **Folder**, read from the file name
 (`CFP-0_25MM_MIN_S1_TEST2` → Condition *0.25 mm/min*, Sample *S1*, Replicate *2*) and the folder.
+The end of the name can give the specimen and the test in either order, with or without `_`, `-` or a space
+between them, in capitals or not: `_S1_TEST2`, `_S2T1`, `_S2-T1`, `_SAMPLE2_RUN3`, `_T1_S2`, or just `_T3`.
 Double-click a cell to change one run, or select several and use **Set Condition…** (*Runs > Set field*).
 A blank value goes back to the automatic one; values you set show in italics. Add your own fields with
 *Runs > Add field…* (e.g. Membrane, Batch).

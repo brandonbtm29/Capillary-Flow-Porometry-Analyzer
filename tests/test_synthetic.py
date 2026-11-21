@@ -110,6 +110,7 @@ def test_low_pressure_flow_below_dry_flow_is_kept(tmp_path):
 def test_group_key():
     assert group_key(Path("CFP-0_25MM_MIN_TEST3.CFT")) == "CFP-0_25MM_MIN"
     assert group_key(Path("CFP-10_00MM_MIN_S1_TEST1.CFT")) == "CFP-10_00MM_MIN"
+    assert group_key(Path("CFP-10_00MM_MIN_S2T1.CFT")) == "CFP-10_00MM_MIN"
     assert group_key(Path("x/CFP-0_70MM_MIN/a.CFT"), "folder") == "CFP-0_70MM_MIN"
 
 

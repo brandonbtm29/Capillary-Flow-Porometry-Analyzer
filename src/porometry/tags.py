@@ -5,6 +5,10 @@ Automatic values come from the file name and folder; your edits are saved in ``r
 opens in Excel. Only the fields you changed are stored; a blank cell means "use the automatic value".
 
     CFP-0_25MM_MIN_S1_TEST2.CFT  ->  Condition "0.25 mm/min", Sample "S1", Replicate "2", Folder "2026-10-11"
+    CFP-0_25MM_MIN_S2T1.CFT      ->  Condition "0.25 mm/min", Sample "S2", Replicate "1"
+
+The end of the name may give the specimen and the test in either order, with or without a separator between
+them and in any case: _S1_TEST2, _S2T1, _S2-T1, _SAMPLE2_RUN3, _SPECIMEN 4 RUN 2, _T1_S2, or only _T3 / _S4.
 """
 
 from __future__ import annotations
@@ -16,26 +20,36 @@ from pathlib import Path
 SIDECAR = "run_tags.csv"
 DEFAULT_FIELDS = ["Condition", "Sample", "Replicate", "Folder"]
 
-_REPLICATE = re.compile(r"[_\- ](?:TEST|RUN|T)(\d+)$", re.IGNORECASE)
-_SPECIMEN = re.compile(r"[_\- ](S|SAMPLE)(\d+)$", re.IGNORECASE)
+_SEP = r"[_\- ]"
+_SPEC = r"(?:SPECIMEN|SAMPLE|S)"  # longest first
+_TEST = r"(?:TEST|RUN|REP|T)"
+# Specimen and/or test number at the end of the name, either order; a separator is needed before the first one
+# (so "PES2" stays part of the name) but is optional between the keyword, its number and the second part.
+_TAIL = re.compile(
+    rf"{_SEP}(?:{_SPEC}{_SEP}?(?P<s1>\d+)(?:{_SEP}?{_TEST}{_SEP}?(?P<r1>\d+))?"
+    rf"|{_TEST}{_SEP}?(?P<r2>\d+)(?:{_SEP}?{_SPEC}{_SEP}?(?P<s2>\d+))?)$",
+    re.IGNORECASE,
+)
 _PREFIX = re.compile(r"^CFP[_\- ]+", re.IGNORECASE)
 _DECIMAL = re.compile(r"(?<![\d.])(\d+)_(\d+)(?=[A-Za-z])")  # 0_25MM -> 0.25MM (not dates like 2_2026)
 _MM_MIN = re.compile(r"\s*MM[_\- ]?(?:PER[_\- ]?)?MIN\b", re.IGNORECASE)
 _NUMBER = re.compile(r"^\s*([-+]?\d+(?:\.\d+)?)")
 
 
+def split_name(stem: str) -> tuple[str, str, str]:
+    """(rest of the name, sample, replicate): CFP-0_25MM_MIN_S2T1 -> ("CFP-0_25MM_MIN", "S2", "1")."""
+    m = _TAIL.search(stem)
+    if not m:
+        return stem, "", ""
+    s = m.group("s1") or m.group("s2")
+    r = m.group("r1") or m.group("r2")
+    return stem[:m.start()], f"S{int(s)}" if s else "", str(int(r)) if r else ""
+
+
 def auto_tags(path: str | Path) -> dict[str, str]:
     """Tags read from the file name and folder."""
     p = Path(path)
-    stem = p.stem
-    rep = ""
-    m = _REPLICATE.search(stem)
-    if m:
-        rep, stem = str(int(m.group(1))), stem[:m.start()]
-    sample = ""
-    m = _SPECIMEN.search(stem)
-    if m:
-        sample, stem = f"S{int(m.group(2))}", stem[:m.start()]
+    stem, sample, rep = split_name(p.stem)
     cond = _PREFIX.sub("", stem) or stem
     cond = _DECIMAL.sub(r"\1.\2", cond)
     cond = _MM_MIN.sub(" mm/min", cond)

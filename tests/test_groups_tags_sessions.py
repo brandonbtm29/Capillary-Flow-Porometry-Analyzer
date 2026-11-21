@@ -28,6 +28,17 @@ def loaded(folder, **kw) -> Workspace:
     ("CFP-PRACTICE-RUN2.CFT", "PRACTICE", "", "2"),
     ("lastdata2_2026-10-08.CFT", "lastdata2 2026-10-08", "", ""),  # dates are not turned into decimals
     ("membrane A_sample3.CFT", "membrane A", "S3", ""),
+    # names used since Oct 2026, and other ways of writing the specimen and test
+    ("CFP-0_25MM_MIN_S2T1.CFT", "0.25 mm/min", "S2", "1"),
+    ("CFP-10_00MM_MIN_S4T3.CFT", "10.00 mm/min", "S4", "3"),
+    ("CFP-2_00MM_MIN_S5-T2.CFT", "2.00 mm/min", "S5", "2"),
+    ("CFP-2_00MM_MIN_S5_T02.CFT", "2.00 mm/min", "S5", "2"),
+    ("cfp-0_70mm_min_s2test1.CFT", "0.70 mm/min", "S2", "1"),
+    ("CFP-0_25MM_MIN_SAMPLE2_RUN3.CFT", "0.25 mm/min", "S2", "3"),
+    ("CFP-0_25MM_MIN_T1_S2.CFT", "0.25 mm/min", "S2", "1"),
+    ("membrane A specimen 4 run 2.CFT", "membrane A", "S4", "2"),
+    ("CFP-PES2_TEST1.CFT", "PES2", "", "1"),  # a number glued to the name is not a specimen
+    ("CFP-PRACTICE-RUN.CFT", "PRACTICE-RUN", "", ""),  # no number: nothing stripped
 ])
 def test_auto_tags_from_file_name(name, cond, sample, rep):
     t = auto_tags(Path("Data/2026-10-11") / name)
