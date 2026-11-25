@@ -8,7 +8,8 @@ cells = []
 
 cells.append(md("""# Capillary flow porometry: compare runs by rate (mm/min)
 
-Loads every `.CFT` file that matches `PATTERN` in `DATA_DIR`, calculates CapRep's numbers (bubble point,
+Loads every `.CFT` file that matches `PATTERN` in `DATA_DIR` (the app's `Data` folder; runs marked as dry
+checks are left out), calculates CapRep's numbers (bubble point,
 mean flow pore, smallest pore, pore size distribution), and plots the runs side by side.
 
 **How to use:**
@@ -24,33 +25,19 @@ cells.append(code("""# ---- settings: change these ----
 import os
 from pathlib import Path
 
-def find_repo():
-    \"\"\"The Capillary-Flow-Porometry-Analyzer repo folder (works whether the notebook runs from examples/ or the repo root).\"\"\"
-    for d in [Path.cwd(), *Path.cwd().parents]:
-        if (d / "pyproject.toml").exists() and (d / "src" / "porometry").exists():
-            return d
-    return Path.cwd()
+from porometry.app_paths import data_dir
 
-REPO = find_repo()
-
-# First folder that exists is used. Works on Windows and macOS (Path.home() = C:\\Users\\Brand or /Users/<you>).
-# If your SyncThing folder lives somewhere else on this computer, add it to SYNC_ROOTS,
-# or set the CFP_DATA_DIR environment variable to the data folder itself.
-DATE = "2026-10-11"                 # sub-folder of Data/ to load
-SYNC_ROOTS = [Path.home() / "SyncThing", Path.home() / "Sync", Path.home() / "Documents" / "SyncThing"]
-SUBFOLDERS = ["", "UAkron Playground"]  # the app's own SyncThing folder, then the old shared one
-DATA_CANDIDATES = (
-    [os.environ.get("CFP_DATA_DIR")]
-    + [root / sub / "Capillary Flow Porometer" / "Data" / DATE for root in SYNC_ROOTS for sub in SUBFOLDERS]
-    + [root / sub / "Capillary Flow Porometer" / "Test Data" for root in SYNC_ROOTS for sub in SUBFOLDERS]
-)
-DATA_DIR = next((Path(p) for p in DATA_CANDIDATES if p and Path(p).exists()), None)
-if DATA_DIR is None:
-    raise SystemExit("No data folder found: set CFP_DATA_DIR, or add your SyncThing folder to SYNC_ROOTS.")
-PATTERN  = "CFP-*_T*.CFT"          # which files to load (e.g. "*_T1.CFT", "*.CFT")
-if DATA_DIR.name == "Test Data":
-    PATTERN = "*.CFT"
-    print(f"{DATE} data folder not found; showing the lab test files in {DATA_DIR} instead.")
+# The app's data folder (~/SyncThing/Capillary Flow Porometer/Data; UAKRON_DATA_DIR moves the root, as in the app).
+# Set the CFP_DATA_DIR environment variable to load one specific folder of .CFT files instead.
+DATA_DIR = Path(os.environ.get("CFP_DATA_DIR") or Path(data_dir()) / "Data")
+PATTERN  = "CFP-*.CFT"             # which files to load (e.g. "CFP-2_00MM*.CFT", "*_S2T*.CFT")
+RATES    = []                       # only these rates (mm/min), e.g. [0.25, 2.0]; [] = every rate
+SKIP_DRY_CHECKS = True              # runs marked "Dry check" in the app have no pore sizes
+if not DATA_DIR.exists():
+    DATA_DIR, PATTERN = Path(data_dir()) / "Test Data", "*.CFT"
+    if not DATA_DIR.exists():
+        raise SystemExit("No data folder found: set CFP_DATA_DIR to the folder with your .CFT files.")
+    print(f"Data folder not found; showing the lab test files in {DATA_DIR} instead.")
 OUT_DIR  = DATA_DIR / "Report"
 SAVE     = False                    # True = write figures and tables to OUT_DIR
 SLIDES   = True                     # True = write a PowerPoint of the tables and figures to OUT_DIR
@@ -66,12 +53,14 @@ MIN_DP_KPA   = 0.5                  # ignore start-up blips (wet flow above dry 
 print("Data folder:", DATA_DIR)"""))
 
 cells.append(code("""import re
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
 from porometry import PSI_TO_KPA, Settings, Workspace
+from porometry.tags import split_name
 
 P = PSI_TO_KPA if UNITS == "kPa" else 1.0          # psi -> display units
 RATE = re.compile(r"(\\d+)_(\\d+)MM_MIN", re.IGNORECASE)
@@ -83,20 +72,31 @@ def rate_of(name):
 ws = Workspace(settings=Settings(shape_factor=SHAPE_FACTOR, min_dp_kpa=MIN_DP_KPA))
 files = sorted(DATA_DIR.glob(PATTERN), key=lambda p: rate_of(p.stem))
 ws.add_files(files)
-runs = sorted(ws.entries, key=lambda e: (rate_of(e.name), e.name))
-print(f"{len(runs)} runs loaded from {DATA_DIR}")
+dry = [e for e in ws.entries if e.dry_check] if SKIP_DRY_CHECKS else []
+runs = sorted((e for e in ws.entries if e not in dry and (not RATES or rate_of(e.name) in RATES)),
+              key=lambda e: (rate_of(e.name), split_name(e.name)[1:], e.name))
+print(f"{len(runs)} runs loaded from {DATA_DIR}" + (f" ({len(dry)} dry check{'s' * (len(dry) != 1)} left out)" if dry else ""))
 for e in runs:
     print(f"  {e.name:28s} rate {rate_of(e.name):>6g} mm/min   QC: {e.qc.status:5s} {e.qc.summary()}")
 for p, err in ws.errors:
     print("  could not read", p.name, ":", err)"""))
 
 cells.append(md("""## Plot style
-One color per rate, in this order. Change `COLORS` or `LABEL` to restyle every plot below."""))
+One color per rate, in this order; runs of the same rate get different markers. Change `COLORS`,
+`MARKERS` or `LABEL` to restyle every plot below."""))
 
 cells.append(code("""COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
-COLOR = {e.name: COLORS[i % len(COLORS)] for i, e in enumerate(runs)}
-LABEL = {e.name: f"{rate_of(e.name):g} mm/min" + ("" if e.name.upper().endswith("T1") else f" ({e.name.split('_')[-1]})")
-         for e in runs}
+MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]   # runs of the same rate get different markers
+RATE_ORDER = sorted({rate_of(e.name) for e in runs})
+COLOR, MARKER, LABEL = {}, {}, {}
+for e in runs:
+    rate = rate_of(e.name)
+    same = [r for r in runs if rate_of(r.name) == rate]
+    _, sample, test = split_name(e.name)
+    COLOR[e.name] = COLORS[RATE_ORDER.index(rate) % len(COLORS)]
+    MARKER[e.name] = MARKERS[same.index(e) % len(MARKERS)]
+    LABEL[e.name] = f"{rate:g} mm/min" + (f" {sample}T{test}" if sample and test else
+                                          "" if len(same) == 1 else f" ({e.name})")
 
 plt.rcParams.update({
     "figure.dpi": 110, "savefig.dpi": 300, "savefig.bbox": "tight",
@@ -159,7 +159,7 @@ then rises to meet the dry curve."""))
 cells.append(code("""fig, ax = plt.subplots(figsize=(8, 4.8))
 for e in runs:
     a, c = e.analysis, COLOR[e.name]
-    ax.plot(a.wet_dp * P, a.wet_flow / 1000, "o-", color=c, label=LABEL[e.name])
+    ax.plot(a.wet_dp * P, a.wet_flow / 1000, "-", marker=MARKER[e.name], color=c, label=LABEL[e.name])
     ax.plot(a.dry_dp * P, a.dry_flow / 1000, ":", color=c, lw=1.3)
 ax.set_xlabel(f"Differential pressure ({UNITS})")
 ax.set_ylabel("Air flow (L/min)")
@@ -176,7 +176,7 @@ The open circle marks the mean flow pore (CFF = 50%)."""))
 cells.append(code("""fig, ax = plt.subplots(figsize=(8, 4.8))
 for e in runs:
     a, c = e.analysis, COLOR[e.name]
-    ax.plot(a.diameter, a.cff, "o-", color=c, label=LABEL[e.name])
+    ax.plot(a.diameter, a.cff, "-", marker=MARKER[e.name], color=c, label=LABEL[e.name])
     if a.mean_flow_d:
         ax.plot(a.mean_flow_d, 50, "o", ms=9, mfc="white", mec=c, mew=2)
 ax.axhline(50, color="#52514e", lw=0.8, ls=":")
@@ -217,7 +217,7 @@ for e in runs:
     a, c = e.analysis, COLOR[e.name]
     d, psd, _ = a.distribution("D")          # "D2" = CapRep's 'distribution as f(D^2)' style
     ok = np.isfinite(psd)
-    ax.plot(d[ok], psd[ok], "o-", color=c, label=LABEL[e.name])
+    ax.plot(d[ok], psd[ok], "-", marker=MARKER[e.name], color=c, label=LABEL[e.name])
 ax.axhline(0, color="#b8b7b1", lw=0.8)
 if LOG_DIAMETER:
     plain_log_x(ax)
@@ -287,6 +287,7 @@ cells.append(md("""## 6. Export
 Writes `summary.xlsx` to `OUT_DIR`, with Summary, Groups (mean ± SD of duplicates), QC and one sheet per run, plus this comparison table."""))
 
 cells.append(code("""from porometry.export import write_summary
+
 if SAVE:
     xlsx = write_summary(ws, OUT_DIR / "summary.xlsx", UNITS)
     with pd.ExcelWriter(xlsx, engine="openpyxl", mode="a") as xw:
@@ -301,6 +302,7 @@ then one slide per figure above. Each slide shows the figure exactly as drawn he
 in its cell, rerun it, then rerun this cell."""))
 
 cells.append(code("""from porometry.slides import write_deck
+
 
 def cols(*names):
     return [c for c in table.columns if any(c.startswith(n) for n in names)]
@@ -317,7 +319,7 @@ if SLIDES:
                 f, captions.get(name, name[:-len("_detail")] if name.endswith("_detail") else ""))
                for name, f in FIGS.items()]
     deck = write_deck(
-        OUT_DIR / f"Porometry {DATE}.pptx",
+        OUT_DIR / f"Porometry {pd.Timestamp.today():%Y-%m-%d}.pptx",
         "Capillary flow porometry",
         f"{len(runs)} runs, {DATA_DIR.name}",
         tables=[("Pore sizes", sizes, "Smallest pore is blank when the run ended before wet flow met dry flow."),
