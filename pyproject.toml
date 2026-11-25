@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,9 +7,10 @@ name = "capillary-flow-porometry-analyzer"
 dynamic = ["version"]
 description = "Analyze PMI CapWin capillary flow porometry (.CFT) files: bubble point, mean flow pore, pore size distribution, QC, overlays."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{ name = "Brandon T. McReynolds" }]
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "numpy>=1.24",
     "pandas>=2.0",
@@ -19,6 +20,11 @@ dependencies = [
     "python-pptx>=0.6.21",
     "scipy>=1.10",  # group statistics (t-test, ANOVA, Tukey HSD)
 ]
+
+[project.urls]
+Homepage = "https://github.com/brandonbtm29/Capillary-Flow-Porometry-Analyzer"
+Issues = "https://github.com/brandonbtm29/Capillary-Flow-Porometry-Analyzer/issues"
+Changelog = "https://github.com/brandonbtm29/Capillary-Flow-Porometry-Analyzer/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "ruff>=0.17,<0.18"]
@@ -46,7 +52,7 @@ pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 110
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]

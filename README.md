@@ -26,7 +26,7 @@ comparison notebook. The first launch sets everything up in `~/.venvs/porometry-
 launcher then starts the app and closes its Terminal window (the notebook's stays open while JupyterLab
 runs). If the files
 won't run (a copy synced from Windows loses the "executable" flag), run `chmod +x *.command` once in
-Terminal in this folder. If macOS blocks them, right-click and choose Open. You need Python 3.10+ (`brew install python`, or python.org).
+Terminal in this folder. If macOS blocks them, right-click and choose Open. You need Python 3.11+ (`brew install python`, or python.org).
 
 The first launch also puts **Capillary Flow Porometry Analyzer.app**, with the app icon, in the
 Applications folder in your home folder (`~/Applications`), so it shows in Launchpad and Spotlight. Drag
@@ -34,7 +34,7 @@ it to the Dock to keep it there. After that you don't need the `.command` file.
 
 ### Windows
 
-You need Python 3.10 or newer ([python.org](https://www.python.org/downloads/); tick
+You need Python 3.11 or newer ([python.org](https://www.python.org/downloads/); tick
 "Add python.exe to PATH" during install).
 
 **Easiest:** double-click `Capillary Flow Porometry Analyzer.bat`. The first launch creates a private Python
