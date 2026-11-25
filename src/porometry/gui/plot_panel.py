@@ -1,7 +1,10 @@
-"""The 'Plot options' panel beside the plots: grouping, colours, axes and look."""
+"""The plot tabs' canvas (`PlotPanel`) and the 'Plot options' panel beside the plots: grouping, colours,
+axes and look."""
 
 from __future__ import annotations
 
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
+from matplotlib.figure import Figure
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QDoubleValidator
 from PyQt6.QtWidgets import (
@@ -29,6 +32,17 @@ PSD_MODES = [("Point-by-point (CapRep), %/µm", ("points", "D")),
              ("Point-by-point, %/µm² (D² weighting)", ("points", "D2")),
              ("Histogram, % flow per bin", ("binned", "D")),
              ("Point-by-point, ΔFF/ΔD² (older CapRep)", ("points", "dD2"))]
+
+
+class PlotPanel(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.figure = Figure(layout="constrained")
+        self.canvas = FigureCanvasQTAgg(self.figure)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(NavigationToolbar2QT(self.canvas, self))
+        lay.addWidget(self.canvas)
 
 
 def _combo(items: dict | list, current=None) -> QComboBox:

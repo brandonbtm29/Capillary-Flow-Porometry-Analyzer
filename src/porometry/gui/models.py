@@ -1,11 +1,11 @@
-"""Qt table model over a pandas DataFrame, with QC status icons."""
+"""Qt table model over a pandas DataFrame (and the proxy that sorts it), with QC status icons."""
 
 from __future__ import annotations
 
 import math
 
 import pandas as pd
-from PyQt6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
 from PyQt6.QtGui import QBrush, QColor, QIcon, QPainter, QPixmap
 
 from ..figures import STATUS_COLORS
@@ -96,3 +96,19 @@ class DataFrameModel(QAbstractTableModel):
         if orientation == Qt.Orientation.Horizontal:
             return str(self._df.columns[section])
         return str(section + 1)
+
+
+class SortProxy(QSortFilterProxyModel):
+    """Sorts numbers as numbers and puts empty cells last."""
+
+    def lessThan(self, left, right):
+        a = self.sourceModel().data(left, Qt.ItemDataRole.UserRole)
+        b = self.sourceModel().data(right, Qt.ItemDataRole.UserRole)
+        if a is None:
+            return False
+        if b is None:
+            return True
+        try:
+            return a < b
+        except TypeError:
+            return str(a) < str(b)

@@ -8,9 +8,7 @@ import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
-from matplotlib.figure import Figure
-from PyQt6.QtCore import QByteArray, QProcess, QSortFilterProxyModel, Qt, QTimer, QUrl
+from PyQt6.QtCore import QByteArray, QProcess, Qt, QTimer, QUrl
 from PyQt6.QtGui import QAction, QActionGroup, QDesktopServices, QFont, QKeySequence
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -21,7 +19,6 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QInputDialog,
     QLabel,
-    QListWidget,
     QListWidgetItem,
     QMainWindow,
     QMenu,
@@ -29,7 +26,6 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSplitter,
     QStyle,
-    QStyledItemDelegate,
     QTableView,
     QTabWidget,
     QTextBrowser,
@@ -52,137 +48,18 @@ from ..tags import sort_key
 from ..workspace import RUN, Entry, Workspace
 from .archive_dialog import ArchiveDialog, ArchivedRunsDialog
 from .export_dialog import ExportDialog, copy_figure
-from .models import DataFrameModel, color_icon, status_icon
-from .plot_panel import DISPLAY, PlotOptionsPanel
+from .models import DataFrameModel, SortProxy, color_icon, status_icon
+from .plot_panel import DISPLAY, PlotOptionsPanel, PlotPanel
+from .run_panels import ALL_RUNS, GROUP_ROLE, GROUPING_HELP, NAME_ROLE, GroupList, TagDelegate
 from .settings_dialog import SettingsDialog
 from .style_dialog import GroupColorsDialog, StyleDialog
 from .update_dialog import UpdateDialog, Worker
 
-NAME_ROLE = Qt.ItemDataRole.UserRole + 1
 PLOTS = [("flow", "Flow vs pressure"), ("cff", "Cumulative filter flow"), ("psd", "Pore size distribution"),
          ("compare", "Compare")]
 REPO_URL = "https://github.com/" + updater.REPO
 MAX_RECENT = 8
 MAX_RECENT_FOLDERS = 10
-
-
-class SortProxy(QSortFilterProxyModel):
-    """Sorts numbers as numbers and puts empty cells last."""
-
-    def lessThan(self, left, right):
-        a = self.sourceModel().data(left, Qt.ItemDataRole.UserRole)
-        b = self.sourceModel().data(right, Qt.ItemDataRole.UserRole)
-        if a is None:
-            return False
-        if b is None:
-            return True
-        try:
-            return a < b
-        except TypeError:
-            return str(a) < str(b)
-
-
-class PlotPanel(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.figure = Figure(layout="constrained")
-        self.canvas = FigureCanvasQTAgg(self.figure)
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(NavigationToolbar2QT(self.canvas, self))
-        lay.addWidget(self.canvas)
-
-
-class TagDelegate(QStyledItemDelegate):
-    """Only tag cells of run rows can be edited (not the run name, the QC column or group rows)."""
-
-    def __init__(self, window: MainWindow):
-        super().__init__(window)
-        self.window = window
-
-    def createEditor(self, parent, option, index):
-        item = self.window.tree.itemFromIndex(index)
-        if item is None or item.data(0, NAME_ROLE) is None or not self.window._is_tag_column(index.column()):
-            return None
-        return super().createEditor(parent, option, index)
-
-
-GROUP_ROLE = Qt.ItemDataRole.UserRole + 2
-ALL_RUNS = "All runs"
-GROUPING_HELP = """\
-## How grouping works
-
-There are two separate ideas: **groups** (which runs you're looking at) and **Average by** (which of those
-runs are averaged together).
-
-### Groups: pick the runs to compare
-
-Groups work like playlists. *All runs* is everything loaded; your own groups sit under it.
-
-- **Make one:** select runs in the list (Ctrl- or Shift-click), then **New group from selection…**.
-- **Add more:** select runs, then **Add to group** (or right-click > *Add to group*), or drag them onto a
-  group in the list.
-- **One run can be in many groups.** The same run can be in "Speed series" and in "S1 replicates".
-- **Click a group** and the plots, tables, statistics, Compare tab and exports show only its runs.
-- Each group remembers how it's plotted: its Average by, Colour by, palette and Show setting.
-- Membership is saved in `run_tags.csv` next to the data (column *Groups*), so it syncs between computers.
-
-### Average by: which runs are replicates of each other
-
-Inside whatever you're looking at, **Average by** (Plot options) decides which runs count as replicates:
-
-- **Condition** (the default): runs with the same condition are averaged, e.g. three 0.25 mm/min runs.
-- **Sample**, **Folder** or a field you added: average along that instead.
-- **Run (no averaging)**: every run stands alone. Use this to compare replicates with each other.
-
-### Examples
-
-| You want to | Group | Average by | Colour by | Show |
-|---|---|---|---|---|
-| Compare speeds, replicates averaged | "Speed series" | Condition | Condition | Group means ± SD |
-| See how the replicates of one sample agree | "S1 replicates" | Run | Replicate | Individual runs |
-| Compare samples at one speed | "0.25 mm/min samples" | Sample | Sample | Runs + group means |
-
-### Tags
-
-Condition, Sample, Replicate and Folder are read from the file name. Double-click a cell to change one run,
-or select several and use *Runs > Set field*. Add your own fields (e.g. Membrane, Batch) with
-*Runs > Add field…*.
-"""
-
-
-class GroupList(QListWidget):
-    """The groups panel. Runs dragged here from the run list are added to the group they're dropped on."""
-
-    def __init__(self, window: MainWindow):
-        super().__init__()
-        self.window = window
-        self.setAcceptDrops(True)
-        self.setDropIndicatorShown(True)
-
-    def dragEnterEvent(self, ev):
-        if ev.source() is self.window.tree:
-            ev.acceptProposedAction()
-        else:
-            super().dragEnterEvent(ev)
-
-    def dragMoveEvent(self, ev):
-        if ev.source() is self.window.tree:
-            it = self.itemAt(ev.position().toPoint())
-            if it is not None and it.data(GROUP_ROLE):
-                ev.acceptProposedAction()
-                return
-            ev.ignore()
-        else:
-            super().dragMoveEvent(ev)
-
-    def dropEvent(self, ev):
-        it = self.itemAt(ev.position().toPoint())
-        if ev.source() is self.window.tree and it is not None and it.data(GROUP_ROLE):
-            self.window.add_selected_to_group(it.data(GROUP_ROLE))
-            ev.acceptProposedAction()
-        else:
-            ev.ignore()
 
 
 class MainWindow(QMainWindow):

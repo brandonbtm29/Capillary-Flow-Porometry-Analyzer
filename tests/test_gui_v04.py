@@ -169,7 +169,7 @@ def select_runs(w, pred):
 
 
 def w_role():
-    from porometry.gui.main_window import NAME_ROLE
+    from porometry.gui.run_panels import NAME_ROLE
     return NAME_ROLE
 
 
@@ -208,7 +208,8 @@ def test_groups_list_new_add_remove_rename_delete(win, monkeypatch):
     monkeypatch.setattr(mw.QMessageBox, "question", lambda *a, **k: mw.QMessageBox.StandardButton.Yes)
     win.delete_group("Slow reps")
     assert win.ws.active_group is None and "Slow reps" not in " ".join(group_items(win))
-    assert "Groups work like playlists" in mw.GROUPING_HELP
+    from porometry.gui.run_panels import GROUPING_HELP
+    assert "Groups work like playlists" in GROUPING_HELP
 
 
 def test_recent_folders_are_remembered(win, speeds, tmp_path):
