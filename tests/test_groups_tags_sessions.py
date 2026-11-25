@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from _synth import write_run  # noqa: E402
+from _synth import write_run
 
 from porometry import groups as G
 from porometry.figures import PlotOptions, make_figure, palette_colors

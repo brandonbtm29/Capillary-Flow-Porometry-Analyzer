@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import matplotlib
@@ -435,12 +434,3 @@ def save_exact(fig: Figure, target, **kw) -> None:
 
 def apply_style() -> None:
     matplotlib.rcParams.update(STYLE)
-
-
-def series_from(analyses: Iterable[Analysis], levels: Iterable[Level] | None = None) -> list[Series]:
-    out = []
-    levels = list(levels) if levels is not None else None
-    for i, a in enumerate(analyses):
-        c, m = style_for(i)
-        out.append(Series(a, c, m, levels[i] if levels else Level.PASS))
-    return out

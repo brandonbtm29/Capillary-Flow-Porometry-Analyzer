@@ -2,7 +2,7 @@
 
 import pandas as pd
 import pytest
-from _synth import write_dry_check, write_run  # noqa: E402
+from _synth import write_dry_check, write_run
 
 from porometry.figures import PlotOptions, make_figure
 from porometry.qc import Level

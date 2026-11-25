@@ -19,13 +19,13 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
-from porometry import PSI_TO_KPA, Workspace  # noqa: E402
-from porometry.export import write_summary  # noqa: E402
-from porometry.figures import STYLE, PlotOptions, make_figure  # noqa: E402
+from porometry import PSI_TO_KPA, Workspace
+from porometry.export import write_summary
+from porometry.figures import STYLE, PlotOptions, make_figure
 
 RATE = re.compile(r"(\d+)_(\d+)MM_MIN", re.IGNORECASE)
 
@@ -38,6 +38,8 @@ def rate_of(name: str) -> float | None:
 def comparison(ws: Workspace) -> pd.DataFrame:
     rows = []
     for e in ws.entries:
+        if e.dry_check:  # marked in the app: no pore sizes to compare
+            continue
         a = e.analysis
         k = PSI_TO_KPA
         cff_end = float(a.cff_raw[-1]) if a.cff_raw.size else np.nan

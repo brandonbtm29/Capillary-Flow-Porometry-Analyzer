@@ -21,8 +21,8 @@ import pandas as pd
 import xlrd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from porometry.analysis import Settings, analyze  # noqa: E402
-from porometry.cft import read_cft  # noqa: E402
+from porometry.analysis import Settings, analyze
+from porometry.cft import read_cft
 
 NUM = re.compile(r"[-+]?\d*\.?\d+")
 MIN_DP = 0.5
@@ -39,7 +39,7 @@ def parse_blocks(xls):
     """Yield dicts, one per CapRep report block (one data file each)."""
     try:
         book = xlrd.open_workbook(str(xls), on_demand=True)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return
     for sh in book.sheets():
         rows = [sh.row_values(r) for r in range(sh.nrows)]
@@ -152,7 +152,7 @@ def collect(root: Path) -> pd.DataFrame:
             seen.add(key)
             try:
                 r = compare(b, cft)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 r = {"cft": str(cft), "error": f"{type(e).__name__}: {e}"}
             r["xls"] = str(xls)
             results.append(r)
