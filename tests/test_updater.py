@@ -1,6 +1,7 @@
 """Update check and self-update (no network: GitHub is faked, the 'remote' is a local git repo)."""
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -157,6 +158,21 @@ def test_never_waits_for_input_or_opens_a_console():
     assert kw["creationflags"] == getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
+def test_git_runs_without_the_callers_git_variables(monkeypatch):
+    """GIT_CONFIG_* can make git run commands and GIT_DIR points it at another repo: none come along."""
+    for name, value in {
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "core.fsmonitor",
+        "GIT_CONFIG_VALUE_0": "evil",
+        "git_dir": "/elsewhere",
+        "GIT_SSH_COMMAND": "evil",
+    }.items():
+        monkeypatch.setenv(name, value)
+    env = updater._popen_kwargs()["env"]
+    assert not [k for k in env if k.upper().startswith("GIT_") and k != "GIT_TERMINAL_PROMPT"]
+    assert env["GIT_TERMINAL_PROMPT"] == "0" and "PATH" in env
+
+
 def test_pip_runs_with_the_console_python(tmp_path):
     (tmp_path / "pythonw.exe").write_text("")
     (tmp_path / "python.exe").write_text("")
@@ -219,8 +235,14 @@ def unreleased_commit(origin):
     git(origin, "commit", "-qm", "work in progress")
 
 
+REAL_RELEASE_SIGNED = updater.release_signed
+
+
 @pytest.fixture
-def clone(tmp_path):
+def clone(tmp_path, monkeypatch):
+    """origin (like GitHub) and a clone of it. The throwaway releases aren't signed, so the signature
+    check passes them here; the signing tests below use the real one."""
+    monkeypatch.setattr(updater, "release_signed", lambda repo, ref: "")
     origin = tmp_path / "origin"
     origin.mkdir()
     git(origin, "init", "-q", "-b", "main")
@@ -345,3 +367,139 @@ def test_check_asks_git_when_the_api_cannot_help(clone, api):
     assert "A bug." in info.notes and "Old stuff" not in info.notes
     assert updater.local_version(local) == "0.2.0"  # checking never changes the files
     assert updater.apply_update(local, info.tag, command=NO_PIP) == "0.3.0"
+
+
+# ------------------------------------------------------------------ signed releases
+def _signers_file(repo, text='me@example.com namespaces="git" ssh-ed25519 AAAA\n'):
+    (repo / ".github").mkdir(parents=True, exist_ok=True)
+    (repo / ".github" / "allowed_signers").write_text(text)
+
+
+@pytest.mark.parametrize(
+    ("letter", "code", "words"),
+    [
+        ("N", 0, "isn't signed"),
+        ("U", 0, "key that isn't on the trusted list"),
+        ("B", 0, "bad signature"),
+        ("E", 0, "couldn't be checked"),
+        ("R", 0, "revoked key"),
+        ("", 0, "couldn't be checked"),  # git printed nothing
+        ("G", 128, "couldn't be checked"),  # git failed
+    ],
+)
+def test_only_good_signatures_pass(tmp_path, monkeypatch, letter, code, words):
+    _signers_file(tmp_path)
+    monkeypatch.setattr(updater, "_ssh_keygen", lambda: "/usr/bin/ssh-keygen")
+    calls = []
+
+    def run(cmd, cwd, timeout):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, code, stdout=letter + "\n", stderr="")
+
+    monkeypatch.setattr(updater, "_run", run)
+    why = updater.release_signed(tmp_path, "abc123")
+    assert words in why and "allowed_signers" in why and "wasn't installed" in why
+    cmd = calls[0]
+    assert cmd[:2] == ["git", "-c"] and cmd[-1] == "abc123" and "--format=%G?" in cmd
+    assert f"gpg.ssh.allowedSignersFile={tmp_path / '.github' / 'allowed_signers'}" in cmd  # this copy's own
+    assert "gpg.ssh.program=/usr/bin/ssh-keygen" in cmd
+
+    monkeypatch.setattr(
+        updater, "_run", lambda cmd, cwd, timeout: subprocess.CompletedProcess(cmd, 0, "G\n", "")
+    )
+    assert updater.release_signed(tmp_path, "abc123") == ""
+
+
+def test_no_list_or_no_ssh_keygen_means_no_update(tmp_path, monkeypatch):
+    def run(cmd, cwd, timeout):
+        raise AssertionError("git shouldn't run")
+
+    monkeypatch.setattr(updater, "_run", run)
+    assert "has no .github/allowed_signers" in updater.release_signed(tmp_path, "abc123")
+    _signers_file(tmp_path)
+    monkeypatch.setattr(updater, "_ssh_keygen", lambda: None)
+    assert "ssh-keygen isn't installed" in updater.release_signed(tmp_path, "abc123")
+
+
+@needs_git
+def test_update_refuses_a_release_that_is_not_signed(clone, monkeypatch):
+    origin, local = clone
+    release(origin, "0.3.0")
+    before = git(local, "rev-parse", "HEAD")
+    monkeypatch.setattr(updater, "release_signed", REAL_RELEASE_SIGNED)  # this clone has no allowed_signers
+    with pytest.raises(updater.UpdateError, match="has no .github/allowed_signers"):
+        updater.apply_update(local, "v0.3.0", command=NO_PIP)
+    monkeypatch.setattr(
+        updater, "release_signed", lambda repo, ref: "The release isn't signed, so it wasn't installed."
+    )
+    with pytest.raises(updater.UpdateError, match="Release v0.3.0 isn't signed"):
+        updater.apply_update(local, "v0.3.0", command=NO_PIP)
+    assert git(local, "rev-parse", "HEAD") == before and updater.local_version(local) == "0.2.0"
+
+
+def _key(tmp_path, name):
+    key = tmp_path / name
+    subprocess.run(
+        [updater._ssh_keygen(), "-q", "-t", "ed25519", "-N", "", "-C", name, "-f", str(key)],
+        check=True,
+        capture_output=True,
+    )
+    return key
+
+
+def _signed_release(origin, v, key, signers_text=None):
+    """Like release(), but the commit is signed with `key` (and may change allowed_signers)."""
+    write_version(origin, v)
+    if signers_text is not None:
+        _signers_file(origin, signers_text)
+    git(origin, "add", "-A")
+    sign = [
+        "-c",
+        "gpg.format=ssh",
+        "-c",
+        f"user.signingkey={key}",
+        "-c",
+        f"gpg.ssh.program={updater._ssh_keygen()}",
+    ]
+    r = subprocess.run(
+        [*GIT, *sign, "commit", "-S", "-qm", f"v{v}"], cwd=origin, capture_output=True, text=True
+    )
+    if r.returncode and os.name == "nt":
+        pytest.skip(f"can't sign a test commit here: {r.stderr.strip()[:200]}")
+    assert r.returncode == 0, r.stderr
+    git(origin, "tag", f"v{v}")
+
+
+@needs_git
+@pytest.mark.skipif(updater._ssh_keygen() is None, reason="OpenSSH's ssh-keygen not installed")
+def test_real_signatures(tmp_path, monkeypatch):
+    """Signed with a listed key: installs. Unsigned, signed by an unlisted key, or a release that lists its
+    own new key: refused, because the check uses this copy's list, not the downloaded one."""
+    monkeypatch.setattr(updater, "release_signed", REAL_RELEASE_SIGNED)
+    trusted, stranger = _key(tmp_path, "trusted"), _key(tmp_path, "stranger")
+    line = 'me@example.com namespaces="git" {}'.format
+    trusted_line = line((tmp_path / "trusted.pub").read_text().strip())
+    stranger_line = line((tmp_path / "stranger.pub").read_text().strip())
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    git(origin, "init", "-q", "-b", "main")
+    _signed_release(origin, "0.2.0", trusted, signers_text=trusted_line + "\n")
+    git(tmp_path, "clone", "-q", str(origin), "clone")
+    local = tmp_path / "clone"
+
+    _signed_release(origin, "0.3.0", trusted)
+    assert updater.apply_update(local, "v0.3.0", command=NO_PIP) == "0.3.0"
+
+    release(origin, "0.4.0")  # not signed
+    with pytest.raises(updater.UpdateError, match="Release v0.4.0 isn't signed"):
+        updater.apply_update(local, "v0.4.0", command=NO_PIP)
+
+    _signed_release(origin, "0.5.0", stranger)
+    with pytest.raises(updater.UpdateError, match="isn't on the trusted list"):
+        updater.apply_update(local, "v0.5.0", command=NO_PIP)
+
+    # A release that adds its own key to the list is still checked against this copy's list
+    _signed_release(origin, "0.6.0", stranger, signers_text=trusted_line + "\n" + stranger_line + "\n")
+    with pytest.raises(updater.UpdateError, match="isn't on the trusted list"):
+        updater.apply_update(local, "v0.6.0", command=NO_PIP)
+    assert updater.local_version(local) == "0.3.0"

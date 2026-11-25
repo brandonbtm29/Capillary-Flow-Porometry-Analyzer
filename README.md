@@ -198,6 +198,11 @@ settings are not touched. It needs git, and it won't run if files in the app fol
 says which). A copy downloaded as a ZIP can't update itself: use **Open release page** to download the new
 version. Turn off the start-up check in the same window. What changed in each version is in `CHANGELOG.md`.
 
+Only signed releases are installed: the release's commit must be signed with one of the keys in
+`.github/allowed_signers`, checked against the copy this computer already has (so a new release can't add
+its own key). If it isn't, the update window says why and the app stays on the version it has. To trust
+another computer's signing key, add it to that file in a commit signed with a key that's already listed.
+
 ## Comparing runs in a notebook
 
 `examples/compare_conditions.ipynb` loads a folder of runs, shows the comparison table and plots each
@@ -309,7 +314,7 @@ src/porometry/
   settings_location.py  Settings Folder option, same copy as in the other UAkron apps
   groups.py     group mean curves, compare metrics, t-test / ANOVA / Tukey
   session.py    save / open .cfpa sessions
-  updater.py    check GitHub for the latest release, move the git clone to its tag
+  updater.py    check GitHub for the latest release, move the git clone to its tag (signed releases only)
   single_instance.py  one copy at a time, same copy as in the other UAkron apps
   diagnostics.py      Open Log Folder / Copy Diagnostics, same copy as in the other UAkron apps
   shortcuts.py  app icon: Windows shortcuts, macOS .app bundle, Linux .desktop entry

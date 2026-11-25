@@ -15,6 +15,12 @@ It refuses when the app's own tracked files were edited (and says which) or the 
 other than ``main``. ZIP copies, standalone builds and computers without git are sent to the release
 page instead.
 
+Only signed releases are installed: the tag's commit must carry a signature from one of the keys in
+``.github/allowed_signers``, as this computer already has it (the copy from the version it's running,
+so a new commit can't add its own key). Someone who got into the GitHub account could publish a
+release, but not sign it, so the app won't install it. git runs without the caller's ``GIT_*``
+variables (``GIT_CONFIG_*`` can make git run commands).
+
 Nothing here waits for input (no git password prompts, no pip questions) or opens a console window on
 Windows. No Qt here, so it can be tested on its own.
 """
@@ -232,7 +238,9 @@ _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # no console flashes up
 
 
 def _popen_kwargs() -> dict:
-    return {"env": {**os.environ, **_QUIET_ENV}, "stdin": subprocess.DEVNULL, "creationflags": _NO_WINDOW}
+    # GIT_* variables (GIT_CONFIG_* can make git run commands, GIT_DIR points it elsewhere) don't come along.
+    env = {k: v for k, v in os.environ.items() if not k.upper().startswith("GIT_")}
+    return {"env": {**env, **_QUIET_ENV}, "stdin": subprocess.DEVNULL, "creationflags": _NO_WINDOW}
 
 
 def _run(cmd: list[str], cwd: Path | None, timeout: float) -> subprocess.CompletedProcess:
@@ -258,6 +266,72 @@ def _git(repo: Path, *args: str, timeout: float = 120, strip: bool = True) -> st
     if r.returncode != 0:
         raise UpdateError(f"git {' '.join(args)} failed:\n{(r.stderr or r.stdout).strip()}")
     return r.stdout.strip() if strip else r.stdout
+
+
+# ------------------------------------------------------------------ signed releases
+SIGNERS = Path(".github") / "allowed_signers"
+SIGNATURE_STATUS = {  # git's %G? letters, for a commit that isn't signed by a trusted key
+    "N": "isn't signed",
+    "U": "is signed with a key that isn't on the trusted list",
+    "B": "has a bad signature",
+    "E": "couldn't be checked",
+    "X": "has an expired signature",
+    "Y": "is signed with an expired key",
+    "R": "is signed with a revoked key",
+}
+
+
+def _ssh_keygen() -> str | None:
+    """OpenSSH's ssh-keygen, which checks SSH signatures (Windows has it in System32, Git also bundles one)."""
+    found = shutil.which("ssh-keygen")
+    if found:
+        return found
+    for candidate in (
+        Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "OpenSSH" / "ssh-keygen.exe",
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git" / "usr" / "bin" / "ssh-keygen.exe",
+    ):
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
+def release_signed(repo: Path, ref: str) -> str:
+    """Empty string if commit `ref` is signed with a key in this copy's own .github/allowed_signers,
+    otherwise why it won't be installed, in plain words."""
+    signers = Path(repo) / SIGNERS
+    keep = "so it wasn't installed and the app stays on the version it has."
+    if not signers.is_file():
+        return f"This copy has no {SIGNERS.as_posix()} to check the update's signature against, {keep}"
+    program = _ssh_keygen()
+    if program is None:
+        return f"OpenSSH's ssh-keygen isn't installed, so the update's signature can't be checked, {keep}"
+    try:
+        r = _run(
+            [
+                "git",
+                "-c",
+                f"gpg.ssh.allowedSignersFile={signers}",
+                "-c",
+                f"gpg.ssh.program={program}",
+                "log",
+                "-1",
+                "--format=%G?",
+                ref,
+            ],
+            repo,
+            60,
+        )
+        status = r.stdout.strip()[-1:] if r.returncode == 0 and r.stdout.strip() else "E"
+    except (OSError, subprocess.SubprocessError):
+        status = "E"
+    if status == "G":
+        return ""
+    why = SIGNATURE_STATUS.get(status, "couldn't be checked")
+    logger.warning("Release %s signature status %r: not installing", ref, status)
+    return (
+        f"The release {why}, {keep} Updates are installed only when they're signed with a key listed "
+        f"in {SIGNERS.as_posix()}."
+    )
 
 
 def _kill_tree(proc: subprocess.Popen) -> None:
@@ -437,11 +511,15 @@ def apply_update(
     if fetch.returncode != 0:
         raise UpdateError("Couldn't download the update:\n" + fetch.output.strip()[-500:])
     try:
-        _git(repo, "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}^{{commit}}")
+        commit = _git(repo, "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}^{{commit}}")
     except UpdateError as exc:
         raise UpdateError(f"The release tag {tag} wasn't found on GitHub.") from exc
     if cancel is not None and cancel.is_set():
         raise UpdateCancelled("The update was cancelled. Nothing was changed.")
+    log("Checking the release's signature…")
+    unsigned = release_signed(repo, commit)
+    if unsigned:
+        raise UpdateError(unsigned.replace("The release", f"Release {tag}", 1))
 
     log(f"Switching to {tag}…")
     try:

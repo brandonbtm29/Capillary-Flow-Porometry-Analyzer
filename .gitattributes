@@ -3,3 +3,4 @@
 *.cft binary
 *.command text eol=lf
 *.sh text eol=lf
+.github/allowed_signers text eol=lf
