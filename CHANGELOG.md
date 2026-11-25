@@ -10,6 +10,12 @@ Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**
 Each release is tagged `vX.Y.Z` and published as a release on GitHub (the app's Update button only offers
 published releases). The version shows in the window title and the bottom-right corner of the app.
 
+## 0.9.1 - 2026-11-25
+
+### Fixed
+- **Runs > Archived runs…** no longer searches your whole home folder when you haven't opened a folder
+  yet, which could take minutes. It looks in the folders you opened and where the loaded runs are.
+
 ## 0.9.0 - 2026-11-25
 
 ### Changed
