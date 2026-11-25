@@ -145,12 +145,12 @@ def test_manual_duplicate_groups():
     ws.add_folder(DATA)
     a = next(e for e in ws.entries if e.name == "CFP-0_25MM_MIN_TEST1")
     b = next(e for e in ws.entries if e.name == "lastdata2_2026-10-08")
-    ws.set_group([a, b], "Oct-8 baseline")
-    ws.reanalyze()  # overrides survive re-analysis
+    ws.set_tag([a, b], ws.average_by, "Oct-8 baseline")
+    ws.reanalyze()  # tags survive re-analysis
     assert a.group == b.group == "Oct-8 baseline"
-    ws.separate([a])
+    ws.set_tag([a], ws.average_by, a.name)
     assert a.group == a.name
-    ws.reset_group([a])
+    ws.reset_tags([a], [ws.average_by])
     assert a.group == "0.25 mm/min"
 
 

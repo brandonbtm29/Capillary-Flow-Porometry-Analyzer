@@ -447,8 +447,6 @@ class MainWindow(QMainWindow):
             self.ws.value_colors = dict(v.get("value_colors") or {})
             self.ws.run_styles = dict(v.get("run_styles") or {})
             self.ws.group_views = {k: dict(d) for k, d in (v.get("group_views") or {}).items()}
-            # pre-0.4 'mark as duplicates' groups: applied as Condition tags when those runs load
-            self.ws.legacy_groups = dict(json.loads(self.qs.value("group_overrides", "{}") or "{}"))
             self.export_prefs = dict(json.loads(self.qs.value("export_v1", "{}") or "{}"))
         except (TypeError, ValueError, json.JSONDecodeError):
             pass
@@ -466,7 +464,6 @@ class MainWindow(QMainWindow):
             "fields": self.ws.fields, "average_by": self.ws.average_by, "color_by": self.ws.color_by,
             "palette": self.ws.palette, "value_colors": self.ws.value_colors, "run_styles": self.ws.run_styles,
             "group_views": self.ws.group_views}))
-        self.qs.setValue("group_overrides", json.dumps(self.ws.legacy_groups))
         self.qs.setValue("export_v1", json.dumps(self.export_prefs))
         self.local.setValue("geometry", self.saveGeometry())
         self.local.setValue("window_state_v2", self.saveState())

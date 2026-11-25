@@ -12,7 +12,7 @@ import pytest
 
 from porometry.analysis import CAPREP_CONSTANT, Settings, _caprep_cff, _dry_function, analyze
 from porometry.cft import CFTError, read_cft
-from porometry.workspace import group_key
+from porometry.tags import split_name
 
 P0 = 14.7
 GAMMA = 15.9
@@ -107,11 +107,10 @@ def test_low_pressure_flow_below_dry_flow_is_kept(tmp_path):
     assert a.bubble_dp == pytest.approx(0.001)
 
 
-def test_group_key():
-    assert group_key(Path("CFP-0_25MM_MIN_TEST3.CFT")) == "CFP-0_25MM_MIN"
-    assert group_key(Path("CFP-10_00MM_MIN_S1_TEST1.CFT")) == "CFP-10_00MM_MIN"
-    assert group_key(Path("CFP-10_00MM_MIN_S2T1.CFT")) == "CFP-10_00MM_MIN"
-    assert group_key(Path("x/CFP-0_70MM_MIN/a.CFT"), "folder") == "CFP-0_70MM_MIN"
+def test_name_without_specimen_and_test():
+    assert split_name("CFP-0_25MM_MIN_TEST3")[0] == "CFP-0_25MM_MIN"
+    assert split_name("CFP-10_00MM_MIN_S1_TEST1")[0] == "CFP-10_00MM_MIN"
+    assert split_name("CFP-10_00MM_MIN_S2T1")[0] == "CFP-10_00MM_MIN"
 
 
 def test_template_notebook_has_no_outputs():
@@ -160,7 +159,7 @@ def test_archive_moves_file_logs_reason_and_restores(tmp_path):
     ws.add_folder(tmp_path)
     assert len(ws.entries) == 2
     bad = next(e for e in ws.entries if "0_25" in e.name)
-    ws.set_group([bad], "manual group")  # sets the Condition tag, saved in run_tags.csv next to the file
+    ws.set_tag([bad], "Condition", "manual group")  # saved in run_tags.csv next to the file
     ws.set_style([bad], color="#123456")
 
     (new,) = ws.archive([bad], reason="torn sample")

@@ -8,9 +8,7 @@
 * ``porometry_local.ini``: things that only make sense on this computer (window size and layout, last
   folder, recent folders and sessions). Always in the app folder.
 
-Both files are gitignored. Before 0.6.0 everything lived in Qt's own store (the registry on Windows, a
-plist on macOS); :func:`open_settings` copies it over once and leaves the old store as it was.
-``POROMETRY_SETTINGS_FILE`` puts everything in that one file instead (the tests use it).
+Both files are gitignored. ``POROMETRY_SETTINGS_FILE`` puts everything in that one file instead (the tests use it).
 """
 
 from __future__ import annotations
@@ -26,8 +24,6 @@ SETTINGS_FILE = "porometry_settings.ini"
 LOCAL_FILE = "porometry_local.ini"
 SETTINGS_ENV = "POROMETRY_SETTINGS_FILE"
 DATA_FOLDER = "Capillary Flow Porometer"  # this app's folder in the UAkron data root (SyncThing)
-LOCAL_KEYS = frozenset({"geometry", "window_state_v2", "last_dir", "recent_folders", "recent_sessions"})
-NATIVE = ("PorometryAnalyzer", "PorometryAnalyzer")  # organisation, application of the pre-0.6 store
 
 
 def app_dir() -> str:
@@ -60,37 +56,14 @@ def current_settings_dir() -> str:
     return os.path.dirname(os.path.abspath(test_file)) if test_file else settings_dir()
 
 
-def _native_store() -> QSettings:
-    s = QSettings(*NATIVE)
-    s.setFallbacksEnabled(False)  # macOS would otherwise add system-wide keys (trackpad, locale, ...)
-    return s
-
-
-def _copy_native(path: str, local: bool) -> None:
-    """Fill a new settings file with the matching keys from the pre-0.6 store, if it has any."""
-    native = _native_store()
-    keys = [k for k in native.allKeys() if (k in LOCAL_KEYS) == local]
-    if not keys:
-        return
-    out = QSettings(path, QSettings.Format.IniFormat)
-    for k in keys:
-        out.setValue(k, native.value(k))
-    out.sync()
-
-
 def open_settings() -> tuple[QSettings, QSettings]:
-    """(shared, local) settings. Missing files start from the pre-0.6 store, if there is one."""
+    """(shared, local) settings."""
     test_file = os.environ.get(SETTINGS_ENV)
     if test_file:
         qs = QSettings(test_file, QSettings.Format.IniFormat)
         return qs, qs
     shared = os.path.join(settings_dir(), SETTINGS_FILE)
     local = os.path.join(app_dir(), LOCAL_FILE)
-    # A shared file that already exists (e.g. synced from another computer) is never overwritten.
-    if not os.path.exists(shared):
-        _copy_native(shared, local=False)
-    if not os.path.exists(local):
-        _copy_native(local, local=True)
     return QSettings(shared, QSettings.Format.IniFormat), QSettings(local, QSettings.Format.IniFormat)
 
 

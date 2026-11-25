@@ -79,18 +79,12 @@ def test_sidecar_unwritable_folder_keeps_tags_in_memory(speeds, monkeypatch):
     assert ws.entries[0].tags["Condition"] == "x" and store.write_errors
 
 
-def test_average_by_and_legacy_groups(speeds):
+def test_average_by(speeds):
     ws = loaded(speeds)
     assert [g for g, _ in [(g.name, 0) for g in ws.group_data()]] == ["0.25 mm/min", "2.00 mm/min", "10.00 mm/min"]
     ws.average_by = "Folder"
     ws.regroup()
     assert {e.group for e in ws.entries} == {"2026-10-11"}
-    # pre-0.4 "mark as duplicates" choices become the Condition tag when the run loads
-    first = sorted(speeds.glob("*.CFT"))[0]
-    ws2 = Workspace(tag_store=MemoryTags(), legacy_groups={str(first.resolve()): "Oct-8 baseline"})
-    ws2.add_folder(speeds)
-    assert next(e for e in ws2.entries if e.path == first).tags["Condition"] == "Oct-8 baseline"
-    assert ws2.legacy_groups == {}
 
 
 # ---------------------------------------------------------------- colours and styles

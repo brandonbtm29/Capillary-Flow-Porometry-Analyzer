@@ -64,6 +64,14 @@ def test_csv_summary(speeds, tmp_path):
     assert mfp["CFP-0_25MM_MIN_S1_TEST2"] > mfp["CFP-2_00MM_MIN_S1_TEST2"] > mfp["CFP-10_00MM_MIN_S1_TEST2"]
 
 
+def test_group_by_folder(speeds, tmp_path):
+    by_name, by_folder = tmp_path / "name.xlsx", tmp_path / "folder.xlsx"
+    assert cli.main([str(speeds), "--excel", str(by_name)]) == 0
+    assert cli.main([str(speeds), "--excel", str(by_folder), "--group-by", "folder"]) == 0
+    assert {"0.25 mm/min", "10.00 mm/min"} <= set(pd.read_excel(by_name, "Groups")["Group"])
+    assert set(pd.read_excel(by_folder, "Groups")["Group"]) == {speeds.name}
+
+
 def test_unreadable_file_is_reported(tmp_path, capsys):
     good = write_run(tmp_path / "CFP-2_00MM_MIN_S1T1.CFT")
     bad = tmp_path / "CFP-BROKEN.CFT"

@@ -20,10 +20,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--figures", help="folder for flow / CFF / PSD figures")
     ap.add_argument("--format", default="png", choices=["png", "svg", "pdf"])
     ap.add_argument("--psi", action="store_true", help="report pressures in psi instead of kPa")
-    ap.add_argument("--group-by", default="name", choices=["name", "folder"])
+    ap.add_argument("--group-by", default="name", choices=["name", "folder"],
+                    help="average runs by the Condition read from the file name (default) or by folder")
     a = ap.parse_args(argv)
 
-    ws = Workspace(group_mode=a.group_by)
+    ws = Workspace(average_by="Folder" if a.group_by == "folder" else "Condition")
     for p in map(Path, a.paths):
         ws.add_folder(p) if p.is_dir() else ws.add_files([p])
     units = "psi" if a.psi else "kPa"

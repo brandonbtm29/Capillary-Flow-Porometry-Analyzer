@@ -58,7 +58,7 @@ def test_mark_duplicates_and_exports(win, tmp_path):
     win.load_paths([str(DATA)])
     a = win._entry("CFP-0_25MM_MIN_TEST1")
     b = win._entry("lastdata2_2026-10-08")
-    win.ws.set_group([a, b], "baseline")
+    win.ws.set_tag([a, b], win.ws.average_by, "baseline")
     win._refresh_all()
     groups = win.group_model.frame
     assert "baseline" in set(groups["Group"])

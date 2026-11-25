@@ -15,7 +15,7 @@ from .cft import PSI_TO_KPA, CFTError, Run, read_cft
 from .figures import MARKERS, Series, palette_colors, style_for
 from .groups import METRICS, GroupData, compare_stats, format_p, metric_label, metric_value
 from .qc import Level, QCReport, QCSettings, check
-from .tags import DEFAULT_FIELDS, MemoryTags, SidecarTags, TagStore, auto_tags, sort_key, split_name
+from .tags import DEFAULT_FIELDS, MemoryTags, SidecarTags, TagStore, auto_tags, sort_key
 
 RUN = "Run"  # "colour by" / "average by" choice: every run on its own
 GROUPS = "Groups"  # your named groups, stored like a tag: "Speed series; S1 replicates"
@@ -35,14 +35,6 @@ def join_groups(names) -> str:
 def default_tag_store() -> TagStore:
     """run_tags.csv next to the data; in memory only when POROMETRY_TAGS=memory (the test suite sets it)."""
     return MemoryTags() if os.environ.get("POROMETRY_TAGS") == "memory" else SidecarTags()
-
-
-def group_key(path: Path, mode: str = "name") -> str:
-    """Raw file-name group (kept for scripts): file name without the trailing specimen and test numbers
-    (CFP-10_00MM_MIN_S1_TEST1, CFP-10_00MM_MIN_S2T1 -> CFP-10_00MM_MIN), or the folder name for mode "folder"."""
-    if mode == "folder":
-        return path.parent.name
-    return split_name(path.stem)[0]
 
 
 @dataclass(eq=False)  # identity comparison: entries hold numpy arrays
@@ -86,24 +78,18 @@ class Entry:
 class Workspace:
     settings: Settings = field(default_factory=Settings)
     qc_settings: QCSettings = field(default_factory=QCSettings)
-    group_mode: str = "name"  # CLI compatibility: "folder" averages by the Folder field
     fields: list[str] = field(default_factory=lambda: list(DEFAULT_FIELDS))
     average_by: str = "Condition"
     color_by: str = RUN
     palette: str = "default"
     value_colors: dict[str, dict[str, str]] = field(default_factory=dict)  # field -> value -> colour
     run_styles: dict[str, dict] = field(default_factory=dict)              # resolved path -> style overrides
-    legacy_groups: dict[str, str] = field(default_factory=dict)  # pre-0.4 "mark as duplicates" (path -> name)
     active_group: str | None = None  # a named group: plots, tables and statistics show only its runs
     group_views: dict[str, dict] = field(default_factory=dict)  # group ("" = all runs) -> how it was plotted
     tag_store: TagStore = field(default_factory=default_tag_store)
     entries: list[Entry] = field(default_factory=list)
     errors: list[tuple[Path, str]] = field(default_factory=list)
     _loaded: int = 0  # how many runs have ever been loaded: keeps colours stable
-
-    def __post_init__(self):
-        if self.group_mode == "folder":
-            self.average_by = "Folder"
 
     # ---------------------------------------------------------------- loading
     def add_files(self, paths) -> list[Entry]:
@@ -122,7 +108,6 @@ class Workspace:
             color, marker = style_for(self._loaded)
             e = Entry(run, a, check(a, self.qc_settings), color, marker, "", load_index=self._loaded)
             self._loaded += 1
-            self._migrate_legacy(e)
             self._retag(e)
             e.style = dict(self.run_styles.get(str(p.resolve()), {}))
             self.entries.append(e)
@@ -175,9 +160,8 @@ class Workspace:
         return restored
 
     def _move_keys(self, old: str, new: str) -> None:
-        for d in (self.run_styles, self.legacy_groups):
-            if old in d:
-                d[new] = d.pop(old)
+        if old in self.run_styles:
+            self.run_styles[new] = self.run_styles.pop(old)
 
     def clear(self) -> None:
         self.active_group = None
@@ -221,13 +205,6 @@ class Workspace:
         self.restyle()
 
     # ---------------------------------------------------------------- tags
-    def _migrate_legacy(self, e: Entry) -> None:
-        """A pre-0.4 'Mark as duplicates' group becomes the run's Condition (saved in run_tags.csv)."""
-        key = str(e.path.resolve())
-        name = self.legacy_groups.pop(key, None)
-        if name and "Condition" not in self.tag_store.get(e.path):
-            self.tag_store.set(e.path, "Condition", name)
-
     def _retag(self, e: Entry) -> None:
         e.auto = auto_tags(e.path)
         user = self.tag_store.get(e.path)
@@ -338,18 +315,6 @@ class Workspace:
             self._retag(e)
         self.recheck()
         self.restyle()
-
-    # pre-0.4 API (kept for scripts and the notebook)
-    def set_group(self, entries: list[Entry], name: str) -> None:
-        """Put runs in one averaging group: sets the 'average by' field."""
-        self.set_tag(entries, self.average_by, name)
-
-    def separate(self, entries: list[Entry]) -> None:
-        for e in entries:
-            self.set_tag([e], self.average_by, e.name)
-
-    def reset_group(self, entries: list[Entry]) -> None:
-        self.reset_tags(entries, [self.average_by])
 
     # ---------------------------------------------------------------- styles
     def restyle(self) -> None:
