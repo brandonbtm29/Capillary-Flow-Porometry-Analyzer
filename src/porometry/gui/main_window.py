@@ -710,9 +710,10 @@ class MainWindow(QMainWindow):
 
     def _archive_search_folders(self) -> list[Path]:
         folders = set(self._folders) | {e.path.parent for e in self.ws.entries}
-        last = Path(self._last_dir())
-        if last.is_dir():
-            folders.add(last)
+        # the last folder you opened, but never _last_dir()'s default (your home folder: searching all of it is slow)
+        last = self.local.value("last_dir", "")
+        if last and Path(last).is_dir():
+            folders.add(Path(last))
         # drop folders already covered by a parent in the set
         return sorted(f for f in folders if not any(p != f and p in f.parents for p in folders))
 

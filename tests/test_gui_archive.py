@@ -1,6 +1,7 @@
 """Archive / restore through the main window, on made-up .CFT files (no lab data needed)."""
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -38,6 +39,8 @@ def test_archive_and_restore_from_the_window(win, tmp_path, monkeypatch):
     w.load_paths([str(tmp_path / "Data")])
     assert len(w.ws.entries) == 2
     assert "Capillary Flow Porometry Analyzer" in w.windowTitle()
+    # no folder chosen yet: archived runs are looked for where the runs came from, not in the whole home folder
+    assert Path.home() not in w._archive_search_folders()
 
     class FakeArchiveDialog:
         def __init__(self, entries, parent=None):
