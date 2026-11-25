@@ -166,9 +166,6 @@ current settings there and asks to restart. On the second computer, choose the s
 settings already there instead of overwriting them. **Use Default** goes back to the app folder. The
 `UAKRON_SETTINGS_DIR` environment variable overrides the choice. Both files are ignored by git.
 
-Settings from versions before 0.6 (kept in the registry / plist) are copied over the first time the new
-version starts. The old copy is left untouched.
-
 ### Other
 
 - **Error log**: errors, with tracebacks (also from background threads), go to `%LOCALAPPDATA%\PorometryAnalyzer\logs\porometry.log` on Windows (`~/Library/Logs/PorometryAnalyzer/porometry.log` on macOS). An unexpected error is shown in a dialog and the app keeps running instead of closing. A hard crash (e.g. in a driver) leaves a `.fatal.log` next to it.

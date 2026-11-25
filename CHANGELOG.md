@@ -10,6 +10,26 @@ Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**
 Each release is tagged `vX.Y.Z` and published as a release on GitHub (the app's Update button only offers
 published releases). The version shows in the window title and the bottom-right corner of the app.
 
+## 0.9.0 - 2026-11-25
+
+### Changed
+- **Updates install only signed releases.** The release's commit must be signed with one of the keys in
+  `.github/allowed_signers`, checked against the copy this computer already has, so a new release can't add
+  its own key. If it isn't, the update window says why (unsigned, signed by a key that isn't listed, or can't
+  be checked) and the app stays on the version it has. Checks start with this version: the update *to* 0.9.0
+  is still installed the old way. git and pip now run without any `GIT_*` settings from the environment.
+- Settings from before 0.6 (Qt's own store in the registry or a plist) are no longer copied over, and the
+  pre-0.4 *Mark as duplicates* groups are no longer turned into Condition tags: every computer had already
+  moved its settings. Scripts that called `Workspace.set_group`, `separate`, `reset_group` or `group_key`
+  should use `set_tag`, `reset_tags` and `tags.split_name`. `porometry-cli --group-by folder` still works.
+
+### Under the hood
+- The QC checks are one small function each (same findings, same order), ready for the unstable-run checks.
+- `gui/main_window.py` is shorter: the run tree's tag editor and the groups list moved to
+  `gui/run_panels.py`, the table sorter to `gui/models.py` and the plot panel to `gui/plot_panel.py`.
+- New tests for the command line, the Archive dialogs, `tools/caprep_check.py` (on a made-up report) and
+  the installed version number.
+
 ## 0.8.1 - 2026-11-25
 
 ### Fixed

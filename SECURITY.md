@@ -14,8 +14,10 @@ reply as soon as I can manage; this is a one-person lab project, so please allow
 - What it sends over the internet: the update check asks GitHub for the latest release, and an update
   runs `git fetch` from this repository and, only if the dependencies changed, `pip install` from PyPI.
   The start-up check can be turned off in the update window.
-- Updates come only from this repository's published releases. The app fast-forwards its git folder to
-  the release's tag and refuses if any of its files were edited by hand.
+- Updates come only from this repository's published releases, and only if the release's commit is
+  signed with a key in `.github/allowed_signers` (checked against the copy this computer already has, so
+  a release can't add its own key). The app fast-forwards its git folder to the release's tag, runs git
+  without any `GIT_*` settings from the environment, and refuses if any of its files were edited by hand.
 - Your data, tags (`run_tags.csv`) and exports stay in your data folder. Nothing is uploaded.
 - **Shared folders:** anyone who can write to the SyncThing data or settings folder can change the run
   tags and shared settings the app uses on every computer that shares them. Share those folders only
