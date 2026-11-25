@@ -9,7 +9,9 @@ distribution) and adds:
 - **Data quality checks:** flags leaks and bypass, missing or short dry curves, wet flow above dry flow,
   runs with no mean flow pore, distributions cut off before the smallest pores, and more.
 - **Publication figures:** PNG (300 dpi), SVG or PDF.
-- **Duplicates:** runs are grouped automatically by file name, or you mark them by hand.
+- **Replicates and groups:** the rate, specimen and test come from the file name (`CFP-2_00MM_MIN_S2T1`),
+  runs average by any tag (mean ± SD) or into named groups, and the Compare tab adds statistics. Runs
+  marked as dry checks are checked on their own and left out of the averages.
 
 Pressures are in **kPa** by default; switch to psi from the toolbar. Diameters are in µm.
 
@@ -186,7 +188,7 @@ version starts. The old copy is left untouched.
 ### Updating
 
 The version you have is in the bottom-right corner. The app checks GitHub for the latest **release** when
-it starts; when a newer one exists, that corner turns into a link (*v0.4.0 → v0.5.0 available*). Click it,
+it starts; when a newer one exists, that corner turns into a link (e.g. *v0.9.0 → v0.9.1 available*). Click it,
 the **Update** button on the toolbar, *Help > Check for updates* or *Settings > App > Check for updates…*
 to see the release notes and **Update and restart**. The update moves this folder to that release
 (`git fetch --tags`, then a fast-forward to its tag; unreleased work on `main` is never pulled in),
@@ -206,8 +208,9 @@ with the data in SyncThing: `~/SyncThing/Capillary Flow Porometer/Notebooks/`.
 `Open Notebook.bat` (Windows) or `Open Notebook.command` (macOS) makes that copy the first time and
 opens it in JupyterLab. In VS Code, open the same file and pick the app's Python environment as the
 kernel (`.venv` in this folder on Windows, `~/.venvs/porometry-analyzer` on macOS); plots show up
-under each cell. The settings cell looks for `Data/<date>` next to it (set `DATE`, or add your
-SyncThing location to `SYNC_ROOTS`) and falls back to `Test Data`. With `SAVE = True` it writes
+under each cell. The settings cell loads the `Data` folder the app uses (`UAKRON_DATA_DIR` moves it;
+set `CFP_DATA_DIR` to load another folder), keeps the files that match `PATTERN` and the `RATES` you
+list, leaves out runs marked as dry checks, and falls back to `Test Data`. With `SAVE = True` it writes
 figures and tables to that data folder's `Report/`, and with `SLIDES = True` (the default) the last
 cell writes a PowerPoint there: title slide, the comparison table, then one slide per figure.
 `TEXT_SIZE` and `LABEL_SIZE` in the settings cell set the tick-label and axis-title sizes.
@@ -326,7 +329,8 @@ This repo holds code only. Measurement data stays in SyncThing, like the other U
 
 | Folder | Contents |
 |---|---|
-| `Data/<date>/` | runs, plus any `Report/` the notebook writes |
+| `Data/` | the runs, `run_tags.csv` (your tags and dry-check marks), `Archive/` (runs taken out) and `Report/` (what the notebook writes) |
+| `Notebooks/` | your working copy of the comparison notebook |
 | `Test Data/` | the `.CFT` files the tests use |
 | `Validation/` | `tools/caprep_check.py` results |
 
@@ -350,6 +354,6 @@ edges, flow_pct, density, centres = a.binned_distribution(20)
 - Integrity, pressure-hold and other test types.
 - CapRep's mean flow pore for runs whose wet flow starts above half the dry flow (see above).
 
-## License
+## Security and license
 
-MIT. See [LICENSE](LICENSE).
+Report security problems privately: see [SECURITY.md](SECURITY.md). MIT license: see [LICENSE](LICENSE).
