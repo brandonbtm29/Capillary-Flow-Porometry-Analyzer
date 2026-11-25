@@ -206,7 +206,8 @@ figure with plain matplotlib, so you can change colors, limits and labels cell b
 The copy in this repo is a template with no results in it. You work in your own copy, which lives
 with the data in SyncThing: `~/SyncThing/Capillary Flow Porometer/Notebooks/`.
 `Open Notebook.bat` (Windows) or `Open Notebook.command` (macOS) makes that copy the first time and
-opens it in JupyterLab. In VS Code, open the same file and pick the app's Python environment as the
+opens it in JupyterLab. An update never changes your copy: to start from a newer template, rename your copy
+(it keeps its results) and open the notebook again. In VS Code, open the same file and pick the app's Python environment as the
 kernel (`.venv` in this folder on Windows, `~/.venvs/porometry-analyzer` on macOS); plots show up
 under each cell. The settings cell loads the `Data` folder the app uses (`UAKRON_DATA_DIR` moves it;
 set `CFP_DATA_DIR` to load another folder), keeps the files that match `PATTERN` and the `RATES` you

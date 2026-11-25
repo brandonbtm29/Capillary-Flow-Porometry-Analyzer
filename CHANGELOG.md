@@ -10,6 +10,25 @@ Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**
 Each release is tagged `vX.Y.Z` and published as a release on GitHub (the app's Update button only offers
 published releases). The version shows in the window title and the bottom-right corner of the app.
 
+## 0.8.1 - 2026-11-25
+
+### Fixed
+- **The comparison notebook loads your data again.** It was still looking for a `Data/2026-10-11` folder
+  (`Data` has been one flat folder since November), so it quietly showed the `Test Data` files instead, and
+  its file pattern matched none of the `S2T1`-style names. It now loads the `Data` folder the app uses, leaves
+  out runs marked as dry checks, can keep only some rates (`RATES`), and labels runs by rate and specimen
+  (`2 mm/min S5T1`): S1T1, S2T1 and S3T1 used to share one label. Each rate keeps one colour; runs of the same
+  rate get different markers. `examples/compare_conditions.py` leaves dry checks out too.
+  Your own copy in `Notebooks/` isn't changed by an update: see the README to refresh it.
+- **Exported text can't turn into a formula.** A tag, field name or run name starting with `=` (or, in a CSV,
+  `+`, `-`, `@`) gets a leading `'`, so Excel shows it as text instead of running it.
+
+### Changed
+- Needs Python 3.11 or newer (3.10 is past its end of life); tested on 3.11 to 3.14.
+- The package's license is written the current way (`license = "MIT"`), which newer versions of setuptools
+  need, and its metadata links the repository, issues and changelog.
+- The README and `CLAUDE.md` describe the flat `Data` folder and the notebook's settings. New `SECURITY.md`.
+
 ## 0.8.0 - 2026-11-21
 
 ### Added
