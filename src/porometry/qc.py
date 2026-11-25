@@ -74,13 +74,29 @@ def check(a: Analysis, s: QCSettings | None = None, dry_check: bool = False,
           previous: Analysis | None = None) -> QCReport:
     """QC findings for one run. A dry check (marked by you: the dry specimen run again after its test) skips
     the pore-size checks; instead its two passes are compared with each other and with `previous`, the dry
-    curve of the test before it on the same specimen, when that run is loaded."""
+    curve of the test before it on the same specimen, when that run is loaded.
+
+    Each check is a function (report, analysis, settings) in one of the tuples after it, run in that order:
+    to add a check, write one and put it in the tuple it belongs to."""
     s = s or QCSettings()
     r = QCReport(dry_check=dry_check)
-    run = a.run
-    kpa = PSI_TO_KPA
+    for fn in RUN_CHECKS:
+        fn(r, a, s)
+    if dry_check:
+        _dry_check(r, a, s, previous)
+    else:
+        for fn in PORE_CHECKS:
+            fn(r, a, s)
+    for fn in FILE_CHECKS:
+        fn(r, a, s)
+    for note in a.notes:
+        r.add("note", Level.INFO, "Note", note)
+    return r
 
-    # --- curve completeness -------------------------------------------------
+
+def _completeness(r: QCReport, a: Analysis, s: QCSettings) -> None:
+    """Both curves have enough points."""
+    run = a.run
     if run.wet.n < s.min_wet_points:
         r.add("wet_short", Level.FAIL, "Wet curve too short",
               f"The wet curve has {run.wet.n} points (need at least {s.min_wet_points}).")
@@ -89,79 +105,91 @@ def check(a: Analysis, s: QCSettings | None = None, dry_check: bool = False,
               f"The dry curve has {run.dry.n} point(s) (need at least {s.min_dry_points}). "
               "The dry run was probably stopped early. CapRep reports 'The data file cannot be processed' for files like this.")
 
-    # --- pressure sanity ----------------------------------------------------
-    lowest = min([x.min() for x in (a.wet_dp, a.dry_dp) if x.size], default=0.0) * kpa
+
+def _pressure(r: QCReport, a: Analysis, s: QCSettings) -> None:
+    """No point below atmospheric pressure."""
+    lowest = min([x.min() for x in (a.wet_dp, a.dry_dp) if x.size], default=0.0) * PSI_TO_KPA
     if lowest < s.below_ambient_kpa:
         r.add("below_ambient", Level.FAIL, "Pressure below ambient",
               f"A point was recorded at {lowest:.1f} kPa differential (below atmospheric). "
               "This usually means the run was aborted or the pressure transducer zero drifted.")
 
-    if dry_check:
-        _dry_check(r, a, s, previous)
-    else:
-        # --- leak / bypass ------------------------------------------------------
-        if a.dp.size and run.dry.n >= s.min_dry_points:
-            # the first 5 % of the range, and always the first measured point
-            window = max(a.max_dp * s.leak_window_frac, float(a.dp[0]))
-            early = a.cff_raw[a.dp <= window]
-            if early.size and np.nanmax(early) > s.leak_cff:
-                d_window = a.to_d(window)
-                r.add("leak", Level.FAIL, "Flow at near-zero pressure (leak or bypass)",
-                      f"Wet flow is already {np.nanmax(early):.0f}% of dry flow below {window * kpa:.1f} kPa. "
-                      "A wetted sample should pass almost no air before its bubble point. Likely causes: air "
-                      "leaking around the sample (seal, O-ring, support mesh under the seal), a pinhole or tear, "
-                      f"or incomplete wetting. (Real pores would have to be larger than about {d_window:.0f} um.)")
-                same = pass_difference(a)
-                if same is not None and same <= s.dry_check_pass_pct:
-                    r.add("looks_dry_check", Level.INFO, "Looks like a dry check",
-                          f"Wet and dry flow agree within a median {same:.1f}% from the first point, as when a dry "
-                          "specimen is run twice. If this run was a dry check, mark it with Runs > Mark as dry "
-                          "check: it is then checked as one and stops failing QC.")
 
-        # --- mean flow pore -----------------------------------------------------
-        if a.dp.size and a.mean_flow_d is None:
-            if a.cff_raw[0] >= 50:
-                why = f"CFF is already {a.cff_raw[0]:.0f}% at the first point, so wet flow never crosses half of dry flow."
-            else:
-                why = f"CFF only reaches {np.nanmax(a.cff_raw):.0f}% by the end of the test."
-            r.add("no_mfp", Level.FAIL, "No mean flow pore", why)
+def _leak(r: QCReport, a: Analysis, s: QCSettings) -> None:
+    """Flow through the wet specimen at near-zero pressure (leak or bypass); hints at an unmarked dry check."""
+    if not (a.dp.size and a.run.dry.n >= s.min_dry_points):
+        return
+    # the first 5 % of the range, and always the first measured point
+    window = max(a.max_dp * s.leak_window_frac, float(a.dp[0]))
+    early = a.cff_raw[a.dp <= window]
+    if early.size and np.nanmax(early) > s.leak_cff:
+        d_window = a.to_d(window)
+        r.add("leak", Level.FAIL, "Flow at near-zero pressure (leak or bypass)",
+              f"Wet flow is already {np.nanmax(early):.0f}% of dry flow below {window * PSI_TO_KPA:.1f} kPa. "
+              "A wetted sample should pass almost no air before its bubble point. Likely causes: air "
+              "leaking around the sample (seal, O-ring, support mesh under the seal), a pinhole or tear, "
+              f"or incomplete wetting. (Real pores would have to be larger than about {d_window:.0f} um.)")
+        same = pass_difference(a)
+        if same is not None and same <= s.dry_check_pass_pct:
+            r.add("looks_dry_check", Level.INFO, "Looks like a dry check",
+                  f"Wet and dry flow agree within a median {same:.1f}% from the first point, as when a dry "
+                  "specimen is run twice. If this run was a dry check, mark it with Runs > Mark as dry "
+                  "check: it is then checked as one and stops failing QC.")
 
-        # --- wet above dry ------------------------------------------------------
-        if a.cff_raw.size:
-            over = a.cff_raw > s.wet_above_dry_cff
-            run_len = _longest_run(over)
-            if run_len >= s.wet_above_dry_points:
-                first = a.dp[np.argmax(over)] * kpa
-                r.add("wet_above_dry", Level.WARN, "Wet flow above dry flow",
-                      f"Wet flow exceeds dry flow by more than {s.wet_above_dry_cff - 100:.0f}% for {run_len} points, "
-                      f"starting near {first:.0f} kPa. The sample may be stretching or tearing at high pressure, "
-                      "or it changed between the wet and dry runs. Consider a lower maximum pressure.")
-            mx = float(np.nanmax(a.cff_raw))
-            if mx < s.wet_meets_dry_cff:
-                r.add("not_closed", Level.WARN, "Wet curve never meets dry curve",
-                      f"CFF peaks at {mx:.0f}%, so the smallest pores never opened and the distribution is cut off. "
-                      "Raise the maximum pressure.")
 
-        # --- resolution near the bubble point ------------------------------------
-        if a.bubble_dp is not None and a.mean_flow_dp is not None:
-            n = int(np.sum((a.dp >= a.bubble_dp) & (a.dp <= a.mean_flow_dp)))
-            if n < s.min_points_bp_to_mfp:
-                r.add("coarse", Level.WARN, "Few points between bubble point and mean flow pore",
-                      f"Only {n} points between {a.bubble_dp * kpa:.0f} and {a.mean_flow_dp * kpa:.0f} kPa. "
-                      "Use smaller pressure steps for a smoother distribution.")
+def _mean_flow_pore(r: QCReport, a: Analysis, s: QCSettings) -> None:
+    """Wet flow crosses half of dry flow."""
+    if a.dp.size and a.mean_flow_d is None:
+        if a.cff_raw[0] >= 50:
+            why = f"CFF is already {a.cff_raw[0]:.0f}% at the first point, so wet flow never crosses half of dry flow."
+        else:
+            why = f"CFF only reaches {np.nanmax(a.cff_raw):.0f}% by the end of the test."
+        r.add("no_mfp", Level.FAIL, "No mean flow pore", why)
 
-    # --- parameter files ------------------------------------------------------
+
+def _wet_vs_dry(r: QCReport, a: Analysis, s: QCSettings) -> None:
+    """Wet flow doesn't run above dry flow, and reaches it by the end."""
+    if not a.cff_raw.size:
+        return
+    over = a.cff_raw > s.wet_above_dry_cff
+    run_len = _longest_run(over)
+    if run_len >= s.wet_above_dry_points:
+        first = a.dp[np.argmax(over)] * PSI_TO_KPA
+        r.add("wet_above_dry", Level.WARN, "Wet flow above dry flow",
+              f"Wet flow exceeds dry flow by more than {s.wet_above_dry_cff - 100:.0f}% for {run_len} points, "
+              f"starting near {first:.0f} kPa. The sample may be stretching or tearing at high pressure, "
+              "or it changed between the wet and dry runs. Consider a lower maximum pressure.")
+    mx = float(np.nanmax(a.cff_raw))
+    if mx < s.wet_meets_dry_cff:
+        r.add("not_closed", Level.WARN, "Wet curve never meets dry curve",
+              f"CFF peaks at {mx:.0f}%, so the smallest pores never opened and the distribution is cut off. "
+              "Raise the maximum pressure.")
+
+
+def _resolution(r: QCReport, a: Analysis, s: QCSettings) -> None:
+    """Enough points between the bubble point and the mean flow pore."""
+    if a.bubble_dp is not None and a.mean_flow_dp is not None:
+        n = int(np.sum((a.dp >= a.bubble_dp) & (a.dp <= a.mean_flow_dp)))
+        if n < s.min_points_bp_to_mfp:
+            r.add("coarse", Level.WARN, "Few points between bubble point and mean flow pore",
+                  f"Only {n} points between {a.bubble_dp * PSI_TO_KPA:.0f} and {a.mean_flow_dp * PSI_TO_KPA:.0f} kPa. "
+                  "Use smaller pressure steps for a smoother distribution.")
+
+
+def _parameter_files(r: QCReport, a: Analysis, s: QCSettings) -> None:
+    """The wet/dry parameter files named in the header exist (Windows only, where CapWin runs)."""
     if s.check_parameter_paths and os.name == "nt":
         for key in ("Wet Parameter", "Dry Parameter"):
-            p = run.header.get(key, "")
+            p = a.run.header.get(key, "")
             if p and not os.path.exists(p):
                 r.add("param_path", Level.INFO, "Parameter file not found",
                       f"{key} '{p}' does not exist on this computer. The test settings are still stored in the file.")
                 break
 
-    for note in a.notes:
-        r.add("note", Level.INFO, "Note", note)
-    return r
+
+RUN_CHECKS = (_completeness, _pressure)  # every run
+PORE_CHECKS = (_leak, _mean_flow_pore, _wet_vs_dry, _resolution)  # not for dry checks (see _dry_check)
+FILE_CHECKS = (_parameter_files,)  # every run, last
 
 
 def pass_difference(a: Analysis) -> float | None:
