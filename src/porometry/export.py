@@ -43,6 +43,27 @@ def raw_curves(a: Analysis, units: str = "kPa") -> pd.DataFrame:
     })
 
 
+# Excel reads a CSV cell starting with one of these as a formula, and openpyxl stores a string starting with
+# "=" as one, so text people typed (tags, field names, run names) could run as a formula when the file is
+# opened. Such cells get a leading ' (the same as typing it in Excel); numbers are left alone.
+CSV_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+XLSX_FORMULA_START = ("=",)
+
+
+def plain_text(df: pd.DataFrame, starts: tuple[str, ...] = CSV_FORMULA_START) -> pd.DataFrame:
+    """A copy of `df` in which text cells (and column names) that would be read as a formula start with '."""
+    def fix(v):
+        return "'" + v if isinstance(v, str) and v.startswith(starts) else v
+
+    out = df.copy()
+    if not isinstance(out.columns, pd.MultiIndex):
+        out.columns = [fix(c) for c in out.columns]
+    for c in out.columns:
+        if pd.api.types.is_object_dtype(out[c]) or pd.api.types.is_string_dtype(out[c]):
+            out[c] = out[c].map(fix)
+    return out
+
+
 def _sheet_name(name: str, used: set[str]) -> str:
     base = re.sub(r"[\[\]\*\?/\\:]", "_", name)[:28]
     s, i = base, 2
@@ -59,17 +80,21 @@ def write_summary(ws: Workspace, path: str | Path, units: str = "kPa", per_run_s
     path = Path(path)
     summary = ws.summary_frame(units)
     if path.suffix.lower() == ".csv":
-        summary.to_csv(path, index=False, encoding="utf-8-sig")
+        plain_text(summary).to_csv(path, index=False, encoding="utf-8-sig")
         return path
     if path.suffix.lower() != ".xlsx":
         path = path.with_suffix(".xlsx")
     qc_rows = [{"Run": e.name, "Level": f.level.label, "Check": f.title, "Detail": f.detail}
                for e in ws.entries for f in e.qc.findings]
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
-        summary.to_excel(xw, sheet_name="Summary", index=False)
-        ws.group_frame(group_max_level).to_excel(xw, sheet_name="Groups", index=False)
-        ws.stats_frame(units=units, max_level=group_max_level).to_excel(xw, sheet_name="Statistics", index=False)
-        pd.DataFrame(qc_rows, columns=["Run", "Level", "Check", "Detail"]).to_excel(xw, sheet_name="QC", index=False)
+        tables = {
+            "Summary": summary,
+            "Groups": ws.group_frame(group_max_level),
+            "Statistics": ws.stats_frame(units=units, max_level=group_max_level),
+            "QC": pd.DataFrame(qc_rows, columns=["Run", "Level", "Check", "Detail"]),
+        }
+        for sheet, table in tables.items():
+            plain_text(table, XLSX_FORMULA_START).to_excel(xw, sheet_name=sheet, index=False)
         if per_run_sheets:
             used = {"Summary", "Groups", "Statistics", "QC"}
             for e in ws.entries:
