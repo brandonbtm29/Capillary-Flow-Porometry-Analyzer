@@ -5,7 +5,7 @@ if not exist ".venv\Scripts\pythonw.exe" (
     echo Setting up Capillary Flow Porometry Analyzer for the first time - this takes about a minute...
     py -3 -m venv .venv 2>nul || python -m venv .venv
     if errorlevel 1 (
-        echo Could not create the environment. Install Python 3.10+ from python.org and tick "Add python.exe to PATH".
+        echo Could not create the environment. Install Python 3.11+ from python.org and tick "Add python.exe to PATH".
         pause
         exit /b 1
     )

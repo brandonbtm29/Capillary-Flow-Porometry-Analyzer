@@ -13,7 +13,7 @@ ROOT="${UAKRON_DATA_DIR:-$ROOT}"
 NBDIR="$ROOT/Capillary Flow Porometer/Notebooks"
 if [ ! -x "$VENV/bin/jupyter-lab" ]; then
   mkdir -p "$(dirname "$VENV")"
-  [ -x "$VENV/bin/python" ] || python3 -m venv "$VENV" || { echo "Install Python 3.10+ (python.org or 'brew install python') and try again."; read -r; exit 1; }
+  [ -x "$VENV/bin/python" ] || python3 -m venv "$VENV" || { echo "Install Python 3.11+ (python.org or 'brew install python') and try again."; read -r; exit 1; }
   "$VENV/bin/python" -m pip install --upgrade pip
   "$VENV/bin/python" -m pip install -e "$REPO[notebook]" || { echo "Installing dependencies failed."; read -r; exit 1; }
 fi

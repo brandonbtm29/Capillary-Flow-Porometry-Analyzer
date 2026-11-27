@@ -10,6 +10,14 @@ Versions follow [semantic versioning](https://semver.org): **MAJOR.MINOR.PATCH**
 Each release is tagged `vX.Y.Z` and published as a release on GitHub (the app's Update button only offers
 published releases). The version shows in the window title and the bottom-right corner of the app.
 
+## 0.9.2 - 2026-11-27
+
+### Fixed
+- **Updates on Windows check signatures with Git's own `ssh-keygen` first.** Windows' built-in one
+  (`System32\OpenSSH`) can hang when it checks a signature in an SSH session (seen on BMAX), and the update
+  was then refused after 60 seconds. It's still used if Git's copy can't be found.
+- The start-up files say to install Python 3.11 or newer, which the app has needed since 0.8.1 (they said 3.10).
+
 ## 0.9.1 - 2026-11-25
 
 ### Fixed
